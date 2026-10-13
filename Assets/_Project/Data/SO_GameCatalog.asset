@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c7a2b3ff1432504a881e44f761e8678, type: 3}
+  m_Name: SO_GameCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Bubbles.Data.GameCatalog
+  ingredients:
+  - {fileID: 11400000, guid: bc7bf890df9ec8e4ba1b5cac4de41f79, type: 2}
+  - {fileID: 11400000, guid: d4d532b1b2cc0c844912f121107b950c, type: 2}
+  - {fileID: 11400000, guid: b8c28386ec371d34c9eb52469f46ad14, type: 2}
+  - {fileID: 11400000, guid: 7c0418de2adadc9478a4185d3e3c9107, type: 2}
+  - {fileID: 11400000, guid: 9ab564315f526294baf5f3f4c3554254, type: 2}
+  - {fileID: 11400000, guid: d68cabaf55ed30647bd3716aaf96dd78, type: 2}
+  - {fileID: 11400000, guid: 7f7ffe4edb3b87249bb9beacbb50679c, type: 2}
+  products:
+  - {fileID: 11400000, guid: 1ff143cd1e621eb4bb0cc4265413c4f7, type: 2}
+  - {fileID: 11400000, guid: f9de50a555a35ec4cb49620d787abdb0, type: 2}
+  - {fileID: 11400000, guid: 0fca22e5df41b0d4384baa94bf264c24, type: 2}
+  recipes:
+  - {fileID: 11400000, guid: d0c71bcaf3609b743a5c87bc555adfdc, type: 2}
+  - {fileID: 11400000, guid: 427700885a21ed1498c5b362ba09ec7b, type: 2}
+  - {fileID: 11400000, guid: 7cf8b563d17347e4a98987fb7bc56c2d, type: 2}
