@@ -1,0 +1,12 @@
+{
+  "name": "4-the-love-of-bubbles",
+  "version": "0.1.0",
+  "description": "A warm 3D tycoon game about growing a handmade bath & body business. Plays in the browser.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/sim.test.mjs",
+    "balance": "BALANCE=1 node --test tests/sim.test.mjs",
+    "start": "node tools/serve.mjs"
+  }
+}

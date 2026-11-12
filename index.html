@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>4 The Love Of Bubbles</title>
+  <meta name="description" content="Grow a handmade bath & body business from your kitchen to a beloved retail brand. A cozy 3D tycoon game.">
+  <meta name="theme-color" content="#f6e9da">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='34' r='24' fill='%23f7c9d4' stroke='%23e98fa5' stroke-width='4'/><path d='M20 28a13 13 0 0 1 10-9' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,600;1,9..144,700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="Workshop view"></canvas>
+  <div id="labels" aria-hidden="true"></div>
+  <div id="ui"></div>
+  <div id="boot">
+    <div class="boot-bubble"></div>
+    <p>Warming up the workshop…</p>
+  </div>
+  <noscript><p style="padding:2rem;font-family:sans-serif">This game needs JavaScript and WebGL to run.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
