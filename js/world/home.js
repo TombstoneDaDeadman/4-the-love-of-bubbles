@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { mat, PAL, box, cyl, sphere, at, group, productMesh, cardboardBox, crate, plant, woodFloorTexture, tileTexture, rugTexture, signTexture, screenTexture, wallTexture, outsideTexture, groundTexture, sprites, sprite } from './kit.js';
 import { createCharacter, founderLook, HELPER_LOOK } from './character.js';
-import { INGREDIENTS, INGREDIENT_ORDER, PRODUCTS, SCENTS, POINTS, DAY_LENGTH } from '../data.js';
+import { INGREDIENTS, HOME_INGREDIENT_ORDER as INGREDIENT_ORDER, PRODUCTS, SCENTS, POINTS, DAY_LENGTH } from '../data.js';
 import { clutterLevel } from '../sim/business.js';
 import { stationProgress } from '../sim/production.js';
 
@@ -346,6 +346,9 @@ export class HomeWorld {
       case 'fragrance': return group(at(cyl(0.032, 0.032, 0.09, mat('#7c62c4', { roughness: 0.2 }), 10), 0, 0.045, 0), at(cyl(0.014, 0.014, 0.04, mat(PAL.dark), 8), 0, 0.11, 0));
       case 'premium': return group(at(cyl(0.03, 0.036, 0.1, mat('#d9607f', { roughness: 0.15 }), 10), 0, 0.05, 0), at(sphere(0.022, mat(PAL.gold, { metalness: 0.7, roughness: 0.3 }), 8), 0, 0.12, 0));
       case 'jar': return group(at(cyl(0.05, 0.05, 0.08, mat('#dff0f2', { roughness: 0.1, transparent: true, opacity: 0.6 }), 12), 0, 0.04, 0), at(cyl(0.052, 0.052, 0.018, mat(PAL.gold, { metalness: 0.5, roughness: 0.4 }), 12), 0, 0.088, 0));
+      case 'bottle': return group(at(cyl(0.03, 0.034, 0.1, mat('#b8742f', { roughness: 0.2 }), 10), 0, 0.05, 0), at(cyl(0.013, 0.013, 0.03, mat(PAL.cream), 8), 0, 0.115, 0));
+      case 'fizz': return group(at(cyl(0.075, 0.07, 0.12, mat('#f4f6f8', { roughness: 0.6 }), 14), 0, 0.06, 0), at(cyl(0.077, 0.077, 0.02, mat(PAL.teal), 14), 0, 0.125, 0));
+      case 'giftbox': return group(at(box(0.18, 0.06, 0.14, mat(c, { roughness: 0.8 }), 0.01), 0, 0.03, 0), at(box(0.025, 0.062, 0.142, mat(PAL.cream)), 0, 0.03, 0));
       default: return group(at(box(0.2, 0.05, 0.14, mat(PAL.kraft, { roughness: 1 })), 0, 0.025, 0), at(box(0.2, 0.052, 0.03, mat(PAL.blush)), 0, 0.025, 0));
     }
   }

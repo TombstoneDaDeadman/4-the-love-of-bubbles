@@ -265,6 +265,17 @@ const G = {
   tubLabel: new THREE.CylinderGeometry(0.0612, 0.0548, 0.036, 18, 1, true),
   bar: new RoundedBoxGeometry(0.115, 0.042, 0.075, 2, 0.012),
   barBand: new THREE.BoxGeometry(0.05, 0.046, 0.079),
+  bottle: new THREE.CylinderGeometry(0.032, 0.036, 0.11, 16),
+  bottleLabel: new THREE.CylinderGeometry(0.0365, 0.0365, 0.05, 16, 1, true),
+  neck: new THREE.CylinderGeometry(0.014, 0.018, 0.026, 10),
+  pump: new THREE.BoxGeometry(0.045, 0.014, 0.016),
+  bomb: new THREE.SphereGeometry(0.045, 16, 12),
+  bombBand: new THREE.TorusGeometry(0.044, 0.007, 6, 20),
+  bombCup: new THREE.CylinderGeometry(0.032, 0.026, 0.024, 14),
+  gift: new RoundedBoxGeometry(0.13, 0.08, 0.1, 2, 0.008),
+  ribbonA: new THREE.BoxGeometry(0.022, 0.083, 0.103),
+  ribbonB: new THREE.BoxGeometry(0.133, 0.083, 0.022),
+  bow: new THREE.TorusGeometry(0.014, 0.005, 6, 12),
 };
 
 // A single sellable unit, sitting on y = 0.
@@ -274,6 +285,23 @@ export function productMesh(container, color, accent) {
     g.add(at(shadow(new THREE.Mesh(G.jar, mat(color, { roughness: 0.3 }))), 0, 0.04, 0));
     g.add(at(shadow(new THREE.Mesh(G.jarLabel, labelMaterial(accent))), 0, 0.04, 0));
     g.add(at(shadow(new THREE.Mesh(G.jarLid, mat(accent, { roughness: 0.45, metalness: 0.25 }))), 0, 0.09, 0));
+  } else if (container === 'bottle') {
+    // amber pump bottle (hair oil)
+    g.add(at(shadow(new THREE.Mesh(G.bottle, mat('#b8742f', { roughness: 0.2, metalness: 0.05 }))), 0, 0.055, 0));
+    g.add(at(shadow(new THREE.Mesh(G.bottleLabel, labelMaterial(accent))), 0, 0.05, 0));
+    g.add(at(shadow(new THREE.Mesh(G.neck, mat('#f4efe6', { roughness: 0.4 }))), 0, 0.122, 0));
+    g.add(at(shadow(new THREE.Mesh(G.pump, mat('#f4efe6', { roughness: 0.4 }))), 0.012, 0.142, 0));
+  } else if (container === 'bomb') {
+    // bath bomb: a fizzy sphere with a contrasting band, sitting in a kraft cup
+    g.add(at(shadow(new THREE.Mesh(G.bomb, mat(color, { roughness: 0.95 }))), 0, 0.045, 0));
+    g.add(at(new THREE.Mesh(G.bombBand, mat(accent, { roughness: 0.9 })), 0, 0.045, 0));
+    g.add(at(shadow(new THREE.Mesh(G.bombCup, mat(PAL.kraft, { roughness: 1 }))), 0, 0.012, 0));
+  } else if (container === 'gift') {
+    // ribboned keepsake box
+    g.add(at(shadow(new THREE.Mesh(G.gift, mat(color, { roughness: 0.7 }))), 0, 0.04, 0));
+    g.add(at(new THREE.Mesh(G.ribbonA, mat(accent, { roughness: 0.5 })), 0, 0.04, 0));
+    g.add(at(new THREE.Mesh(G.ribbonB, mat(accent, { roughness: 0.5 })), 0, 0.04, 0));
+    for (const s of [-1, 1]) { const b = new THREE.Mesh(G.bow, mat(accent, { roughness: 0.5 })); b.rotation.z = s * 0.6; b.castShadow = true; g.add(at(b, s * 0.018, 0.088, 0)); }
   } else if (container === 'tub') {
     g.add(at(shadow(new THREE.Mesh(G.tub, mat(color, { roughness: 0.35 }))), 0, 0.03, 0));
     g.add(at(new THREE.Mesh(G.tubLabel, labelMaterial(accent)), 0, 0.03, 0));

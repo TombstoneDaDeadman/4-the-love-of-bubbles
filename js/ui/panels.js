@@ -2,8 +2,9 @@
 // frame (progress bars, countdowns) is left as a data-live placeholder and filled in by ui.js,
 // so the HTML only changes when the underlying state does.
 
-import { INGREDIENTS, INGREDIENT_ORDER, PRODUCTS, PRODUCT_ORDER, TIERS, SCENTS, SCENT_ORDER, UPGRADES, UPGRADE_ORDER, CAMPAIGNS, CAMPAIGN_ORDER, VARIANT_COST, MAX_SKUS_HOME, HOME_GOALS } from '../data.js';
-import { batchNeeds, batchUnits, batchTime, unitCost, refPrice, skuQuality, skuRating, priceAppeal, ingredientTotal, ingredientCap, incomingTotal, goodsTotal, goodsCap, supplyCost, ingredientFree } from '../sim/inventory.js';
+import { INGREDIENTS, INGREDIENT_ORDER, PRODUCTS, PRODUCT_ORDER, TIERS, SCENTS, SCENT_ORDER, UPGRADES, UPGRADE_ORDER, CAMPAIGNS, CAMPAIGN_ORDER, STORE_CAMPAIGN_ORDER, VARIANT_COST, HOME_GOALS, PRODUCT_LINES, LINE_ORDER, LOYALTY, ARCHETYPES } from '../data.js';
+import { batchNeeds, batchUnits, batchTime, unitCost, refPrice, skuQuality, skuRating, priceAppeal, ingredientTotal, ingredientCap, incomingTotal, goodsTotal, goodsCap, supplyCost, ingredientFree, maxSkus, productUnlocked, ingredientInUse } from '../sim/inventory.js';
+import { profitReport } from '../sim/store.js';
 import { MAX_QUEUE } from '../sim/production.js';
 import { demandBreakdown, canFulfill } from '../sim/orders.js';
 import { todayProfit } from '../sim/economy.js';
@@ -90,10 +91,11 @@ export function suppliesPanel(s, ui) {
   for (const id of INGREDIENT_ORDER) {
     const ing = INGREDIENTS[id];
     if (id === 'premium' && !s.skus.some((k) => k.tier === 2) && !s.ingredients.premium) continue;
+    if (!ingredientInUse(s, id)) continue;
     const incoming = s.deliveries.reduce((a, d) => a + (d.items[id] || 0), 0);
     out += `<div class="row" title="${esc(ing.note)} Supplier: ${esc(ing.supplier)}.">
       <span class="swatch sm" style="background:${ing.color};width:30px;height:30px;font-size:15px">${ing.icon}</span>
-      <div class="grow"><div class="title" style="font-size:13.5px">${ing.name}</div><div class="tiny">Have <b style="color:var(--ink)">${s.ingredients[id]}</b>${incoming ? ` · +${incoming} coming` : ''} · ${money(ing.cost * ing.lot, true)} per ${ing.lot}</div></div>
+      <div class="grow"><div class="title" style="font-size:13.5px">${ing.name}</div><div class="tiny">Have <b style="color:var(--ink)">${s.ingredients[id] || 0}</b>${incoming ? ` · +${incoming} coming` : ''} · ${money(ing.cost * ing.lot, true)} per ${ing.lot}</div></div>
       <div class="stepper"><button class="icon-btn" data-act="cart" data-id="${id}" data-d="-1" ${cart[id] ? '' : 'disabled'}>−</button><b>${cart[id] || 0}</b><button class="icon-btn" data-act="cart" data-id="${id}" data-d="1">+</button></div></div>`;
   }
   out += `</div>`;
@@ -116,7 +118,7 @@ function appealChip(sku) {
 }
 
 export function recipesPanel(s, ui) {
-  let out = `<div class="sect">Your recipe book <span>${s.skus.length} / ${MAX_SKUS_HOME}</span></div>`;
+  let out = `<div class="sect">Your recipe book <span>${s.skus.length} / ${maxSkus(s)}</span></div>`;
   for (const sku of s.skus) {
     const cost = unitCost(s, sku), margin = sku.price - cost, rating = skuRating(sku);
     out += `<div class="card ${sku.paused ? 'dim' : ''}"><div class="row">${skuSwatch(sku)}<div class="grow"><div class="title">${esc(sku.name)}</div>
@@ -128,10 +130,20 @@ export function recipesPanel(s, ui) {
   }
   const v = ui.variant;
   const exists = s.skus.some((k) => k.productId === v.productId && k.scentId === v.scentId && k.tier === v.tier);
-  const full = s.skus.length >= MAX_SKUS_HOME;
+  const full = s.skus.length >= maxSkus(s);
+  if (s.era === 'store') {
+    out += `<div class="sect">New product lines</div>`;
+    for (const id of LINE_ORDER) {
+      const P = PRODUCTS[id], L = PRODUCT_LINES[id], have = productUnlocked(s, id);
+      const fans = Object.values(ARCHETYPES).find((a) => a.requires === id);
+      out += `<div class="card ${have ? 'owned' : ''}"><div class="row"><span class="swatch" style="background:${SCENTS[L.starter].color}">${productIcon(P.container)}</span><div class="grow"><div class="title">${P.name}</div><div class="muted">${P.blurb} ${L.desc}</div></div></div>
+        <div class="row"><div class="chips grow"><span class="chip">${P.batch} per batch</span><span class="chip">from ${money(P.basePrice)}</span>${fans ? `<span class="chip pink">${fans.name}s</span>` : ''}</div>
+        ${have ? `<span class="chip ok">✓ Developed</span>` : `<button class="btn sm" data-act="line" data-id="${id}" ${s.cash < L.cost || full ? 'disabled' : ''}>${money(L.cost)}</button>`}</div></div>`;
+    }
+  }
   const tier = TIERS[v.tier];
   out += `<div class="sect">Develop a new recipe <span>${money(VARIANT_COST)} R&amp;D</span></div><div class="card">
-    <div class="tiny">Product</div><div class="pick">${PRODUCT_ORDER.map((id) => `<button class="${v.productId === id ? 'on' : ''}" data-act="vprod" data-id="${id}">${productIcon(PRODUCTS[id].container)} ${PRODUCTS[id].name}</button>`).join('')}</div>
+    <div class="tiny">Product</div><div class="pick">${PRODUCT_ORDER.filter((id) => productUnlocked(s, id)).map((id) => `<button class="${v.productId === id ? 'on' : ''}" data-act="vprod" data-id="${id}">${productIcon(PRODUCTS[id].container)} ${PRODUCTS[id].name}</button>`).join('')}</div>
     <div class="tiny">Scent</div><div class="pick">${SCENT_ORDER.map((id) => `<button class="${v.scentId === id ? 'on' : ''}" data-act="vscent" data-id="${id}"><span class="dotc" style="background:${SCENTS[id].color}"></span>${SCENTS[id].name}</button>`).join('')}</div>
     <div class="tiny">Formula</div><div class="pick">${TIERS.map((t) => `<button class="${v.tier === t.id ? 'on' : ''}" data-act="vtier" data-id="${t.id}">${t.name}</button>`).join('')}</div>
     <div class="muted">${tier.desc} Quality ${tier.quality}/100. Suggested price ${money(Math.round(PRODUCTS[v.productId].basePrice * tier.priceMult))}.</div>
@@ -163,16 +175,52 @@ export function marketingPanel(s) {
     <div class="kv"><span>📈 Word of mouth</span><b>${f(d.growth)}</b></div><div class="kv"><span>📣 Campaigns</span><b>${f(d.marketing)}</b></div>
     <div class="kv"><span>🏷️ Pricing</span><b class="${d.price < 0.9 ? 'neg' : ''}">${f(d.price)}</b></div><div class="kv"><span>🧴 Product range</span><b>${f(d.range)}</b></div>${d.channel < 1 ? `<div class="kv"><span>🏪 Shop takes local trade</span><b>${f(d.channel)}</b></div>` : ''}</div>
     <div class="sect">Campaigns</div>`;
-  for (const id of CAMPAIGN_ORDER) {
-    const c = CAMPAIGNS[id];
-    const active = s.marketing.active.some((a) => a.id === id);
-    const cd = (s.marketing.cooldowns[id] || 0) > 0;
-    out += `<div class="card"><div class="row"><span class="swatch" style="background:#fbe4ea">${c.icon}</span><div class="grow"><div class="title">${c.name}</div><div class="muted">${c.desc}</div></div></div>
-      ${active || cd ? `<div class="bar ${active ? 'pink' : ''}"><i data-live="campaign:${id}"></i></div>` : ''}
-      <div class="row"><span class="chip pink">+${Math.round(c.boost * 100)}% orders</span><span class="grow tiny">${active ? 'Running now' : cd ? 'Cooling down' : ''}</span>
-      <button class="btn sm" data-act="campaign" data-id="${id}" ${active || cd || s.cash < c.cost ? 'disabled' : ''}>${c.cost ? money(c.cost) : 'Free'}</button></div></div>`;
+  for (const id of CAMPAIGN_ORDER) out += campaignCard(s, id, 'orders');
+  if (s.era === 'store') {
+    out += `<div class="sect">In the shop</div>`;
+    for (const id of STORE_CAMPAIGN_ORDER) out += campaignCard(s, id, 'shoppers');
+    const st = s.store;
+    out += `<div class="card ${st.loyalty ? 'owned' : ''}"><div class="row"><span class="swatch" style="background:#fbe4ea">💳</span><div class="grow"><div class="title">Loyalty Cards</div><div class="muted">${LOYALTY.desc}</div></div></div>
+      <div class="row"><span class="chip pink grow" style="justify-content:center">Permanent</span>${st.loyalty ? `<span class="chip ok">✓ Running</span>` : `<button class="btn sm" data-act="loyalty" ${s.cash < LOYALTY.cost ? 'disabled' : ''}>${money(LOYALTY.cost)}</button>`}</div></div>`;
   }
   if (s.missedDemand > 0) out += `<div class="tiny" style="padding:0 4px">${s.missedDemand} would-be customers left because the order list was full.</div>`;
+  return out;
+}
+
+function campaignCard(s, id, what) {
+  const c = CAMPAIGNS[id];
+  const active = s.marketing.active.some((a) => a.id === id);
+  const cd = (s.marketing.cooldowns[id] || 0) > 0;
+  return `<div class="card"><div class="row"><span class="swatch" style="background:#fbe4ea">${c.icon}</span><div class="grow"><div class="title">${c.name}</div><div class="muted">${c.desc}</div></div></div>
+      ${active || cd ? `<div class="bar ${active ? 'pink' : ''}"><i data-live="campaign:${id}"></i></div>` : ''}
+      <div class="row"><span class="chip pink">+${Math.round(c.boost * 100)}% ${what}</span><span class="grow tiny">${active ? 'Running now' : cd ? 'Cooling down' : ''}</span>
+      <button class="btn sm" data-act="campaign" data-id="${id}" ${active || cd || s.cash < c.cost ? 'disabled' : ''}>${c.cost ? money(c.cost) : 'Free'}</button></div></div>`;
+}
+
+// Store profitability: straight from the ledger's daily category totals, so it always reconciles.
+function storeProfitability(s) {
+  const rows = profitReport(s, 7);
+  let out = '';
+  if (rows.length) {
+    const max = Math.max(1, ...rows.map((d) => Math.max(d.revenue, d.expenses)));
+    out += `<div class="sect">Store profitability <span>last ${rows.length} days</span></div><div class="card"><div class="pl-chart">${rows.map((d) => `<div class="pl-col" title="Day ${d.day}: in ${money(d.revenue)}, out ${money(d.expenses)}"><div class="pl-bars"><i class="in" style="height:${(d.revenue / max) * 70}px"></i><i class="out" style="height:${(d.expenses / max) * 70}px"></i></div><b class="${d.profit >= 0 ? 'pos' : 'neg'}">${money(d.profit)}</b><span>D${d.day}</span></div>`).join('')}</div>
+      <div class="tiny"><span class="key in"></span> money in <span class="key out"></span> money out</div></div>`;
+    const last = rows[rows.length - 1];
+    const margin = last.revenue > 0 ? Math.round((last.profit / last.revenue) * 100) : 0;
+    out += `<div class="sect">Yesterday · Day ${last.day}</div><div class="card">
+      <div class="kv"><span>Store sales</span><b class="pos">${money(last.store, true)}</b></div><div class="kv"><span>Online orders</span><b class="pos">${money(last.online, true)}</b></div>
+      ${last.otherIncome > 0.005 ? `<div class="kv"><span>Other income</span><b class="pos">${money(last.otherIncome, true)}</b></div>` : ''}
+      ${last.groups.filter((g) => g.value > 0.005).map((g) => `<div class="kv"><span>${g.label}</span><b class="neg">${money(-g.value, true)}</b></div>`).join('')}
+      <div class="kv total"><span>Net profit${last.revenue > 0 ? ` · ${margin}% margin` : ''}</span><b class="${last.profit >= 0 ? 'pos' : 'neg'}">${money(last.profit, true)}</b></div>
+      ${last.visitors ? `<div class="tiny">${last.visitors} visitors, ${last.buyers} bought: ${money(last.store / Math.max(1, last.visitors), true)} per visitor.</div>` : ''}</div>`;
+  }
+  const sold = s.skus.filter((k) => k.storeSold > 0).sort((a, b) => b.storeRevenue - a.storeRevenue);
+  if (sold.length) {
+    out += `<div class="sect">Best sellers in the shop</div><div class="card">${sold.slice(0, 8).map((k) => {
+      const cost = unitCost(s, k), margin = k.price - cost;
+      return `<div class="row">${skuSwatch(k, 'sm')}<div class="grow"><div class="title" style="font-size:13px">${esc(k.name)}</div><div class="tiny">${k.storeSold} sold · ${money(margin, true)} profit each</div></div><b class="pos" style="font-size:13px">${money(k.storeRevenue)}</b></div>`;
+    }).join('')}</div>`;
+  }
   return out;
 }
 
@@ -186,6 +234,7 @@ export function reportsPanel(s) {
   if (s.store) {
     const st = s.store, td = st.today;
     out += `<div class="sect">Shop floor today</div><div class="card"><div class="kv"><span>Store sales</span><b class="pos">${money(td.revenue, true)}</b></div><div class="kv"><span>Visitors · bought · left</span><b>${td.visitors} · ${td.buyers} · ${td.walkouts}</b></div><div class="kv"><span>Units sold in store</span><b>${td.items}</b></div><div class="kv"><span>Store rating</span><b>★ ${st.reputation.toFixed(1)}</b></div></div>`;
+    out += storeProfitability(s);
   }
   out += `<div class="sect">Today · Day ${s.time.day}</div><div class="card">
     <div class="kv"><span>Revenue</span><b class="pos">${money(t.revenue, true)}</b></div><div class="kv"><span>Expenses</span><b class="neg">${money(-t.expenses, true)}</b></div>

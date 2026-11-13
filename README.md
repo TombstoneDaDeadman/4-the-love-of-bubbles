@@ -3,7 +3,7 @@
 A warm, stylised 3D tycoon game about growing a handmade bath, body, skin and hair-care business,
 from a kitchen stovetop to a store of your own. It runs entirely in the browser.
 
-**Chapter One: The Home Business** and the first part of **Chapter Two: The First Store** are playable now.
+**Chapter One: The Home Business** and **Chapter Two: The First Store** are playable now.
 
 ## Play
 
@@ -53,6 +53,16 @@ to the workroom in the back; the front is a shop floor you lay out yourself.
    reach it.
 5. **Store rating** comes from how each shopper felt on the way out, and drives foot traffic.
    Online orders keep coming at a gentler pace and are packed in the workroom.
+6. **Running it well**: set how full each display should stay (or ask for a restock right now),
+   keep the floor clean (shoppers wear it down and spill things), schedule staff on all-day,
+   opening or closing shifts, and send them for training. Stockers keep shelves full and the
+   floor tidy; a Production Worker runs the stove so you don't have to.
+7. **Growing the shop**: develop hair oil, bath bombs and gift sets, which bring in Hair-Care,
+   Trend and Gift Shoppers. A store design score (variety, full displays, decor, cleanliness,
+   room to browse, a welcome display) drives foot traffic. Local marketing (window displays, the
+   Main Street Gazette, workshop nights, loyalty cards) brings people through the door.
+8. **Reports** show each day's store profit and loss and the shop's best sellers, built straight
+   from the transaction ledger.
 
 Two long-term meters matter: **Reputation** (recent customer reviews) and **Brand Soul** (does the
 business still feel handmade, generous and reliable?).
@@ -109,6 +119,8 @@ js/ui/                HUD, panels, orders rail, tutorial, modals, diagnostics
 js/audio.js           synthesised sound effects and music (no audio files)
 tests/sim.test.mjs    economy, inventory, production, save and soak tests
 tests/store.test.mjs  store, build validation, pathfinding, recovery, staff, save and soak tests
+tests/store4.test.mjs product lines, cleaning, shifts, training, restock rules, design, marketing,
+                      save migration, and a full-loop soak whose reports must reconcile with the ledger
 ```
 
 ## Tests
@@ -146,6 +158,6 @@ services (TimeService, EconomyService, InventoryService and so on) as modules un
 - [x] Milestone 2: home business polish (founder, sound, tutorial, recipe book, marketing, balance)
 - [x] Milestone 3: first store prototype (store map, shoppers and pathfinding, displays, browsing and
       buying, checkout queue, basic staff, store rating, simple build mode)
-- [ ] Milestone 4: first store full loop (restock rules, cleaning, schedules and training, more
+- [x] Milestone 4: first store full loop (restock rules, cleaning, schedules and training, more
       archetypes, store design score, local marketing, more products, profitability reports)
 - [ ] Milestone 5 and 6: second store and chain management

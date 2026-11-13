@@ -18,6 +18,16 @@ const MIGRATIONS = {
   // v2 (Era II): the store did not exist yet. Players who already signed the lease stay in the
   // kitchen until they choose to move in, so they still get the opening moment.
   1: (st) => { st.store = null; st.era = 'home'; st.milestone = { storeOpened: false, storeDay: 0, ...(st.milestone || {}) }; return st; },
+  // v3 (Milestone 4): product lines, display refill levels, staff shifts and experience, cleanliness.
+  2: (st) => {
+    st.lines = st.lines || {};
+    for (const k of st.skus || []) { k.storeSold = k.storeSold || 0; k.storeRevenue = k.storeRevenue || 0; }
+    if (st.store) {
+      for (const f of st.store.furniture) for (const sl of f.slots) { if (sl.refill === undefined) sl.refill = 0.5; sl.rush = !!sl.rush; }
+      for (const r of st.store.staff) { r.shift = r.shift || 'full'; r.xp = r.xp || 0; r.trained = r.trained || 0; }
+    }
+    return st;
+  },
 };
 
 // Fill in any keys a save is missing (older or partially corrupt optional data) from a fresh state.

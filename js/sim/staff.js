@@ -1,26 +1,37 @@
-// StaffService (brief §12), Milestone 3 "basic staff": hiring, dismissing, roles, daily wages,
+// StaffService (brief §12): hiring, dismissing, roles, shifts, training, wages and experience,
 // and what the founder and each role do in the store.
 //
-//   Founder     production and online packing in the back room; covers the till when there is
-//               no cashier, and restocks displays when there is no sales associate.
-//   Cashier     works the till.
-//   Associate   restocks displays from back stock, then helps browsing shoppers.
+//   Founder            production and online packing in the back room; covers the till when no
+//                      cashier is on shift, and restocks when no associate or stocker is.
+//   Cashier            works the till.
+//   Sales Associate    restocks urgent displays, helps browsing shoppers, then restocks and tidies.
+//   Stocker            keeps displays full, then tidies spills and mops.
+//   Production Worker  runs the stations and packs online orders.
 //
 // Staff tasks recover if their target disappears: a restock whose display is sold or reassigned
-// returns the carried units to back stock.
+// returns the carried units to back stock; a tidy-up whose mess is gone simply ends.
 
-import { STORE, STORE_POINTS, STAFF_ROLES, FURNITURE } from '../data.js';
+import { STORE, STORE_POINTS, STAFF_ROLES, FURNITURE, SHIFTS, DAY_LENGTH, STORE_ROWS, STORE_GRID } from '../data.js';
 import { transact, forceExpense } from './economy.js';
 import { addGoods, removeGoods, getSku } from './inventory.js';
 import { tickActor, step, productionWork, taskStart, taskCollect, taskPack, sharedValid, sharedAction, releaseTask } from './workers.js';
-import { walkTo } from './path.js';
+import { walkTo, cellCenter, walkGrid, isWalkable } from './path.js';
 import { getFurniture, slotPoint } from './store.js';
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const r2 = (v) => Math.round(v * 100) / 100;
 
 export function staffRecord(state, id) { return state.store ? state.store.staff.find((x) => x.id === id) : null; }
 export const roleOf = (state, actor) => (actor.id === 'founder' ? 'founder' : (staffRecord(state, actor.id) || {}).role || 'associate');
-const hasRole = (state, role) => state.store.staff.some((x) => x.role === role);
 
-// ---- Hiring -------------------------------------------------------------------------------
+export function onShift(state, rec) {
+  const sh = SHIFTS[rec.shift || 'full'], d = state.time.t / DAY_LENGTH;
+  return d >= sh.from && d < sh.to;
+}
+// Someone in this role is working right now (on shift, not off training).
+const covered = (state, role) => state.store.staff.some((x) => x.role === role && onShift(state, x) && !x.training);
+
+// ---- Hiring and HR -------------------------------------------------------------------------
 
 export function hireStaff(game, candId, role) {
   const s = game.state, st = s.store;
@@ -31,10 +42,10 @@ export function hireStaff(game, candId, role) {
   if (!STAFF_ROLES[role || cand.role]) return { ok: false, reason: 'Unknown role.' };
   if (!transact(game, -STORE.hireFee, 'Staff wages', `Hiring ${cand.name}`)) return { ok: false, reason: 'Not enough cash for the hiring costs.' };
   st.candidates.splice(st.candidates.indexOf(cand), 1);
-  const rec = { ...cand, role: role || cand.role, hiredDay: s.time.day };
+  const rec = { shift: 'full', xp: 0, trained: 0, ...cand, role: role || cand.role, hiredDay: s.time.day };
   st.staff.push(rec);
   const p = STORE_POINTS.backdoor;
-  s.actors.push({ id: rec.id, x: p.x, z: p.z - 0.6, face: 0, task: null, anim: 'idle', carrying: null, path: null, pathKey: null, pathVer: -1 });
+  s.actors.push({ id: rec.id, x: p.x, z: p.z - 0.6, face: 0, task: null, anim: 'idle', carrying: null, path: null, pathKey: null, pathVer: -1, away: false });
   game.emit('staffHired', rec);
   return { ok: true, staff: rec };
 }
@@ -57,17 +68,54 @@ export function setStaffRole(game, id, role) {
   if (!rec || !STAFF_ROLES[role]) return { ok: false, reason: 'Unknown role.' };
   if (rec.role === role) return { ok: true };
   const actor = s.actors.find((a) => a.id === id);
-  if (actor) releaseStoreTask(game, actor);
+  if (actor && !rec.training) releaseStoreTask(game, actor);
   rec.role = role;
   game.emit('staffRole', rec);
   return { ok: true };
 }
 
-export function wagesPerDay(state) {
-  return state.store ? state.store.staff.reduce((a, x) => a + x.wage, 0) : 0;
+export function setShift(game, id, shift) {
+  const rec = staffRecord(game.state, id);
+  if (!rec || !SHIFTS[shift]) return { ok: false, reason: 'Unknown shift.' };
+  rec.shift = shift;
+  game.emit('staffShift', rec);
+  return { ok: true };
 }
+
+// Send someone to the office laptop for a short course. Costs money and their time on the floor;
+// the skill gain is permanent.
+export function trainStaff(game, id, skill) {
+  const s = game.state, rec = staffRecord(s, id);
+  if (!rec) return { ok: false, reason: 'No such employee.' };
+  if (skill !== 'speed' && skill !== 'service') return { ok: false, reason: 'Unknown skill.' };
+  if (rec.training) return { ok: false, reason: `${rec.name} is already training.` };
+  if (!onShift(s, rec)) return { ok: false, reason: `${rec.name} is not on shift right now.` };
+  if (rec[skill] >= STORE.statCap) return { ok: false, reason: `${rec.name} has mastered that.` };
+  if (!transact(game, -STORE.trainCost, 'Staff training', `${rec.name}: ${skill}`)) return { ok: false, reason: 'Not enough cash.' };
+  rec.training = skill;
+  const actor = s.actors.find((a) => a.id === id);
+  if (actor) {
+    releaseStoreTask(game, actor);
+    actor.task = { type: 'train', label: 'Training', i: 0, timer: -1, steps: [step('desk', STORE.trainTime, 'work', 'finishTraining')] };
+  }
+  game.emit('staffTraining', rec);
+  return { ok: true };
+}
+
+export function wageToday(rec) { return Math.round(rec.wage * SHIFTS[rec.shift || 'full'].pay); }
+export function wagesPerDay(state) {
+  return state.store ? state.store.staff.reduce((a, x) => a + wageToday(x), 0) : 0;
+}
+// Closing time: pay everyone, and a day's work is a day's experience (every 3 days, a little better).
 export function payWages(game) {
-  for (const rec of game.state.store.staff) forceExpense(game, rec.wage, 'Staff wages', rec.name);
+  for (const rec of game.state.store.staff) {
+    forceExpense(game, wageToday(rec), 'Staff wages', rec.name);
+    rec.xp = (rec.xp || 0) + 1;
+    if (rec.xp % 3 === 0) {
+      rec.speed = r2(Math.min(STORE.statCap, rec.speed + 0.02));
+      rec.service = r2(Math.min(STORE.statCap, rec.service + 0.02));
+    }
+  }
 }
 
 // ---- Store tasks ----------------------------------------------------------------------------
@@ -76,15 +124,22 @@ function taskTill() {
   return { type: 'till', label: 'At the till', noBar: true, idleT: 0, steps: [step('register', 1e9, 'work')] };
 }
 
-function restockTask(game, actor) {
+// A display needs refilling when it drops below its own threshold, or when the player asked for
+// it (rush). Rushed slots go first.
+export function needsRestock(state, slot, cap) {
+  if (!slot.skuId || slot.claimedBy || (state.goods[slot.skuId] || 0) <= 0 || slot.stock >= cap) return false;
+  return slot.rush || slot.stock / cap < (slot.refill ?? STORE.restockBelow);
+}
+
+function restockTask(game, actor, rushOnly = false) {
   const s = game.state, st = s.store;
-  let best = null, bestFill = Infinity;
+  let best = null, bestScore = Infinity;
   for (const fu of st.furniture) {
     const cap = FURNITURE[fu.type].slotCap;
     fu.slots.forEach((slot, k) => {
-      if (!slot.skuId || slot.claimedBy || (s.goods[slot.skuId] || 0) <= 0) return;
-      const fill = slot.stock / cap;
-      if (fill < STORE.restockBelow && fill < bestFill) { bestFill = fill; best = { fu, k, slot }; }
+      if (!needsRestock(s, slot, cap) || (rushOnly && !slot.rush)) return;
+      const score = slot.stock / cap - (slot.rush ? 10 : 0);
+      if (score < bestScore) { bestScore = score; best = { fu, k, slot }; }
     });
   }
   if (!best) return null;
@@ -115,43 +170,85 @@ function helpTask(game, actor) {
   return { type: 'help', custId: best.id, label: `Helping ${best.name}`, steps: [step(pt, 2.2, 'wave', 'helpShopper', null)] };
 }
 
-function chooseStore(game, actor) {
-  const s = game.state, st = s.store;
-  const role = roleOf(s, actor);
-  if (role === 'cashier') return taskTill();
-  if (role === 'associate') return restockTask(game, actor) || helpTask(game, actor);
-  // founder
-  if (!hasRole(s, 'cashier') && st.queue.length) return taskTill();
+function tidyTask(game, actor) {
+  const st = game.state.store;
+  let best = null, bd = Infinity;
+  for (const m of st.messes) {
+    if (m.claimedBy) continue;
+    const d = Math.hypot(m.x - actor.x, m.z - actor.z);
+    if (d < bd) { bd = d; best = m; }
+  }
+  if (best) {
+    best.claimedBy = actor.id;
+    return { type: 'tidy', messId: best.id, label: 'Tidying a spill', steps: [step({ x: best.x, z: best.z + 0.35, face: Math.PI }, 2.5, 'work', 'tidy', null)] };
+  }
+  // No spills: give the floor a mop if it needs one (one mop at a time).
+  if (st.clean < 85 && !game.state.actors.some((a) => a.task && a.task.type === 'mop')) {
+    const walk = walkGrid(st);
+    for (let n = 0; n < 6; n++) {
+      const i = game.randInt(1, STORE_GRID.cols - 2), j = game.randInt(STORE_ROWS.floor[0] + 1, STORE_ROWS.floor[1] - 1);
+      if (!isWalkable(walk, i, j)) continue;
+      const p = cellCenter(i, j);
+      return { type: 'mop', label: 'Mopping the floor', steps: [step({ x: p.x, z: p.z, face: game.rand() * 6 }, 4, 'work', 'mop')] };
+    }
+  }
+  return null;
+}
+
+function makerTask(game, actor) {
   const w = productionWork(game);
   if (w.urgent) return taskPack(game, actor, w.urgent);
   if (w.collectable) return taskCollect(actor, w.collectable);
   if (w.idle) return taskStart(game, actor, w.idle);
-  if (!hasRole(s, 'associate')) { const r = restockTask(game, actor); if (r) return r; }
+  if (w.queued[0]) return taskPack(game, actor, w.queued[0]);
+  return null;
+}
+
+function chooseStore(game, actor) {
+  const s = game.state, st = s.store;
+  const role = roleOf(s, actor);
+  if (role === 'cashier') return taskTill();
+  if (role === 'associate') return restockTask(game, actor) || (st.messes.length >= 3 && tidyTask(game, actor)) || helpTask(game, actor) || tidyTask(game, actor);
+  if (role === 'stocker') return restockTask(game, actor) || tidyTask(game, actor);
+  if (role === 'maker') return makerTask(game, actor);
+  // founder
+  if (!covered(s, 'cashier') && st.queue.length) return taskTill();
+  const shopCovered = covered(s, 'associate') || covered(s, 'stocker');
+  if (!shopCovered) { const r = restockTask(game, actor, true); if (r) return r; }
+  const w = productionWork(game);
+  if (w.urgent) return taskPack(game, actor, w.urgent);
+  if (w.collectable) return taskCollect(actor, w.collectable);
+  if (w.idle) return taskStart(game, actor, w.idle);
+  if (!shopCovered) { const r = restockTask(game, actor); if (r) return r; }
   if (w.queued[0]) return taskPack(game, actor, w.queued[0]);
   return null;
 }
 
 function validStore(state, task, actor) {
   const st = state.store;
+  if (task.type === 'train') return !!staffRecord(state, actor.id);
   if (task.type === 'till') {
     const role = roleOf(state, actor);
     if (role === 'cashier') return true;
-    return role === 'founder' && !hasRole(state, 'cashier') && task.idleT < 2.5;
+    return role === 'founder' && !covered(state, 'cashier') && task.idleT < 2.5;
   }
   if (task.type === 'restock') {
     const fu = getFurniture(state, task.fid);
     return !!fu && !!fu.slots[task.slot] && fu.slots[task.slot].skuId === task.skuId;
   }
   if (task.type === 'help') return st.customers.some((c) => c.id === task.custId && c.state !== 'leave' && c.state !== 'queue' && c.state !== 'paying');
+  if (task.type === 'tidy') return st.messes.some((m) => m.id === task.messId);
+  if (task.type === 'mop') return true;
   return sharedValid(state, task);
 }
 
 function actionStore(game, actor, task, name) {
-  const s = game.state;
+  const s = game.state, st = s.store;
+  const rec = staffRecord(s, actor.id);
   if (name === 'pickStock') {
     const fu = getFurniture(s, task.fid), slot = fu.slots[task.slot];
     const qty = Math.min(FURNITURE[fu.type].slotCap - slot.stock, s.goods[task.skuId] || 0);
-    if (qty <= 0 || !removeGoods(s, task.skuId, qty)) { slot.claimedBy = null; actor.task = null; actor.carrying = null; return; }
+    if (qty <= 0 || !removeGoods(s, task.skuId, qty)) { slot.claimedBy = null; slot.rush = false; actor.task = null; actor.carrying = null; return; }
     task.payload = { skuId: task.skuId, units: qty };
   } else if (name === 'fillSlot') {
     const fu = getFurniture(s, task.fid), slot = fu.slots[task.slot];
@@ -159,16 +256,28 @@ function actionStore(game, actor, task, name) {
     slot.stock += n;
     if (task.payload.units > n) addGoods(s, task.skuId, task.payload.units - n);
     task.payload = null;
-    slot.claimedBy = null;
+    slot.claimedBy = null; slot.rush = false;
     game.emit('displayRestocked', { fid: fu.id, slot: task.slot, units: n });
   } else if (name === 'helpShopper') {
-    const c = s.store.customers.find((x) => x.id === task.custId);
-    const rec = staffRecord(s, actor.id);
+    const c = st.customers.find((x) => x.id === task.custId);
     if (c) {
       c.helped = true; c.helperId = null;
       c.mood += 6 + ((rec ? rec.service : 1) - 1) * 12;
-      s.store.stats.helped += 1;
+      st.stats.helped += 1;
       game.emit('shopperThought', { id: c.id, kind: 'helped' });
+    }
+  } else if (name === 'tidy') {
+    const k = st.messes.findIndex((m) => m.id === task.messId);
+    if (k >= 0) { st.messes.splice(k, 1); st.clean = clamp(st.clean + 1, 0, 100); game.emit('tidied', { x: actor.x, z: actor.z }); }
+  } else if (name === 'mop') {
+    st.clean = clamp(st.clean + 5 * (rec ? rec.speed : 1), 0, 100);
+  } else if (name === 'finishTraining') {
+    if (rec && rec.training) {
+      const skill = rec.training;
+      rec[skill] = r2(Math.min(STORE.statCap, rec[skill] + 0.12));
+      rec.trained = (rec.trained || 0) + 1;
+      rec.training = null;
+      game.emit('staffTrained', { rec, skill });
     }
   } else sharedAction(game, actor, task, name);
 }
@@ -176,37 +285,63 @@ function actionStore(game, actor, task, name) {
 // Abandon a task safely (store-era version of releaseTask).
 export function releaseStoreTask(game, actor) {
   const s = game.state, task = actor.task;
-  if (task && task.type === 'restock') {
+  const done = () => { actor.task = null; actor.carrying = null; };
+  if (!task) return releaseTask(game, actor);
+  if (task.type === 'restock') {
     const fu = getFurniture(s, task.fid);
     if (fu && fu.slots[task.slot] && fu.slots[task.slot].claimedBy === actor.id) fu.slots[task.slot].claimedBy = null;
     if (task.payload) addGoods(s, task.payload.skuId, task.payload.units);
-    actor.task = null; actor.carrying = null;
-    return;
+    return done();
   }
-  if (task && task.type === 'help') {
+  if (task.type === 'help') {
     const c = s.store.customers.find((x) => x.id === task.custId);
     if (c && c.helperId === actor.id) c.helperId = null;
-    actor.task = null; actor.carrying = null;
-    return;
+    return done();
   }
+  if (task.type === 'tidy') {
+    const m = s.store.messes.find((x) => x.id === task.messId);
+    if (m && m.claimedBy === actor.id) m.claimedBy = null;
+    return done();
+  }
+  if (task.type === 'train') {
+    // Leaving mid-course (dismissed, or the day ended) refunds nothing but frees them up.
+    const rec = staffRecord(s, actor.id);
+    if (rec) rec.training = null;
+    return done();
+  }
+  if (task.type === 'mop' || task.type === 'till') return done();
   releaseTask(game, actor);
 }
+
+function speedOf(state, actor) { const r = staffRecord(state, actor.id); return r ? r.speed : 1; }
 
 const STORE_HOOKS = {
   choose: chooseStore,
   valid: validStore,
   action: actionStore,
   point: (state, p) => (typeof p === 'string' ? STORE_POINTS[p] : p),
-  rest: (actor) => (actor.id === 'founder' ? 'rest' : null),
+  rest: () => 'rest',
   move: (game, actor, target, dt) => walkTo(game.state.store, actor, target.x, target.z, dt, STORE.staffSpeed * speedOf(game.state, actor)),
-  speed: (actor) => 1,
+  speed: () => 1,
   onInvalid: releaseStoreTask,
 };
-function speedOf(state, actor) { const r = staffRecord(state, actor.id); return r ? r.speed : 1; }
+const REST = { cashier: 'register', associate: 'floor', stocker: 'floor', maker: 'rest2' };
 
 export function tickStoreStaff(game, dt) {
   const s = game.state, st = s.store;
   for (const actor of s.actors) {
+    const rec = staffRecord(s, actor.id);
+    // Off shift: head to the staff room and clock out (training runs to the end of the course).
+    if (rec && !onShift(s, rec) && !rec.training) {
+      if (actor.task) releaseStoreTask(game, actor);
+      if (!actor.away) {
+        const p = STORE_POINTS.staffroom;
+        actor.anim = 'walk';
+        if (walkTo(st, actor, p.x, p.z, dt, STORE.staffSpeed * rec.speed)) { actor.away = true; actor.anim = 'idle'; }
+      }
+      continue;
+    }
+    if (actor.away) actor.away = false;
     const task = actor.task;
     // Keep a restock heading for the display's current spot if it was moved.
     if (task && task.type === 'restock' && task.ver !== st.layoutVer && getFurniture(s, task.fid)) {
@@ -215,8 +350,7 @@ export function tickStoreStaff(game, dt) {
       if (pt) { task.steps[1].point = pt; task.ver = st.layoutVer; }
     }
     if (task && task.type === 'till') task.idleT = st.queue.length ? 0 : task.idleT + dt;
-    const role = roleOf(s, actor);
-    const hooks = role === 'founder' ? STORE_HOOKS : { ...STORE_HOOKS, rest: () => (role === 'cashier' ? 'register' : 'floor'), speed: () => speedOf(s, actor) };
+    const hooks = rec ? { ...STORE_HOOKS, rest: () => REST[rec.role] || 'floor', speed: () => rec.speed } : STORE_HOOKS;
     tickActor(game, actor, dt, hooks);
   }
   // Who is standing at the till right now?

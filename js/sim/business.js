@@ -32,7 +32,9 @@ export function startCampaign(game, id) {
   const s = game.state, c = CAMPAIGNS[id];
   if (!c) return { ok: false, reason: 'Unknown campaign.' };
   if ((s.marketing.cooldowns[id] || 0) > 0) return { ok: false, reason: 'Still running or cooling down.' };
+  if (c.channel === 'store' && s.era !== 'store') return { ok: false, reason: 'You need a shop for that.' };
   if (c.cost > 0 && !transact(game, -c.cost, 'Marketing', c.name)) return { ok: false, reason: 'Not enough cash.' };
+  if (c.soul) s.soul = Math.min(100, s.soul + c.soul);
   s.marketing.active.push({ id, remaining: c.duration });
   s.marketing.cooldowns[id] = c.cooldown;
   game.emit('campaign', c);

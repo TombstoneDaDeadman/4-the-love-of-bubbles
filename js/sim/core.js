@@ -48,7 +48,7 @@ export function makeSku(id, productId, scentId, tier) {
     id, productId, scentId, tier,
     name: skuDisplayName(productId, scentId, tier),
     price: Math.round(PRODUCTS[productId].basePrice * TIERS[tier].priceMult),
-    paused: false, sold: 0, made: 0, ratingSum: 0, ratingCount: 0,
+    paused: false, sold: 0, made: 0, ratingSum: 0, ratingCount: 0, storeSold: 0, storeRevenue: 0,
   };
 }
 
@@ -89,6 +89,7 @@ export function newGameState(founder = {}, seed = (Date.now() & 0x7fffffff)) {
     actors: [newActor('founder', 'rest')],
     milestone: { outgrown: false, leaseSigned: false, storeOpened: false, storeDay: 0 },
     store: null, // Era II state, created by openStore()
+    lines: {},   // product lines developed in the store era (hair, bomb, gift)
     tutorial: { step: 0, done: false },
   };
   STARTER_SKUS.forEach((s, i) => {

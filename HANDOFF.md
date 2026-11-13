@@ -7,10 +7,9 @@ Downloads folder; it is not in the repo, so ask for it to be attached).
 ## Where things stand
 
 - **Built:** Era I, the Home Business (brief milestones 0, 1 and 2), plus a visual polish pass.
-  **Milestone 3 (first store prototype)** is built on branch `claude/tender-shannon-tt8lzl`
+  **Milestones 3 and 4 (the first store)** are built on branch `claude/tender-shannon-tt8lzl`
   (based on `web`, not yet merged into `web`, so the live link still ends at the lease).
-- **Not built:** Milestone 4 (first store full loop) and Era III, the Retail Chain (milestones 5
-  and 6).
+- **Not built:** Era III, the Retail Chain (milestones 5 and 6).
 - **Live:** https://tombstonedadeadman.github.io/4-the-love-of-bubbles/ (GitHub Pages).
 - **Repo:** `TombstoneDaDeadman/4-the-love-of-bubbles`, public.
   - `web` branch = this browser game. Pages deploys from `web` / root. **Pushing to `web` updates
@@ -154,13 +153,41 @@ Defined in `js/data.js` and `js/sim/orders.js`; tune with `npm run balance`.
   was blocked in that environment): opening shot, store, staff, display inspector, build ghost and
   placement, shop-floor panel, store save/continue, and the home era after the change.
 
+## Milestone 4: what was added
+
+- **Save v3** (migration 2 -> 3): `state.lines`, slot `refill`/`rush`, staff `shift`/`xp`/`trained`,
+  store `clean`/`messes`/`loyalty`, SKU `storeSold`/`storeRevenue`.
+- **Products** (`PRODUCTS.hair/bomb/gift`, `PRODUCT_LINES`, three new ingredients flagged with
+  `line`): unlocked with `unlockLine()` in the store era only; `productUnlocked()` gates recipes,
+  supplies and shopper wants. Kitchen code uses `HOME_INGREDIENT_ORDER` (the original 8).
+- **Archetypes**: Gift, Hair-Care and Trend Shoppers (`requires` a line; Trend scales with
+  marketing and likes popular items; Gift prefers tables). `archetypeWeights()`.
+- **Restocking**: per-slot refill level (25/50/80%) and `rushSlot()`; `needsRestock()` in staff.js.
+- **Cleaning**: each visit wears `store.clean`; browsing can drop messes; associates and stockers
+  tidy and mop; closing time restores some; `cleanliness()` = clean minus messes. Dirty shops cost
+  mood, design score and (below 50 at closing) Brand Soul.
+- **Staff**: roles Cashier, Sales Associate, Stocker, Production Worker; shifts full / opening /
+  closing (`SHIFTS`, off-shift staff walk to the staff room and are hidden); `trainStaff()` (cost,
+  time at the desk, +0.12 to a stat); +0.02 to both stats every 3 days worked.
+- **Store design score** (`designScore()`): six explained parts, 0-100; drives foot traffic and
+  shoppers' starting mood. New decor: tester bar (shoppers try products first), bench (patience),
+  floor lamp.
+- **Local marketing**: campaigns now have a `channel` (`online` / `store`); three store campaigns
+  and loyalty cards.
+- **Reports**: `profitReport()` builds store P&L purely from ledger day categories; the full-loop
+  soak test asserts cost groups == ledger expenses and store sales == the store's own tally.
+- Balance (`npm run balance`, full-loop bot): ~$400-700/day profit, rating 3.5-3.9, cleanliness
+  76-87. Brand Soul drifts down slowly if you only sell Classic formulas; that is intended.
+
 ## Design decisions to confirm with the owner
 
 - Online orders keep coming in the store era at 55% of the home rate (brief lists both online and
   store revenue; nothing says online stops).
 - Marketing campaigns also lift foot traffic at half strength (local marketing proper is M4).
-- Display restocking is automatic (staff refill below half). Manual restock thresholds and a
-  dedicated Stocker role are left for M4's "Restocking".
+- Display restocking is automatic below a per-display level the player sets, plus a manual
+  "Restock now". There is no fully manual (player-carries-stock) mode.
+- The brief's section 11 overlays (traffic heat map, low stock, staff coverage, satisfaction,
+  cleanliness, profitability) are not built; they are not on the Milestone 4 list.
 - The checkout counter, back-room fixtures and walls are fixed in M3; build mode covers shelves,
   tables and plants only.
 
@@ -168,7 +195,11 @@ Defined in `js/data.js` and `js/sim/orders.js`; tune with `npm run balance`.
 
 Follow the brief's milestone lists (sections 5, 6, 8 and 15). Suggested shape, not yet started:
 
-### Era II: First Retail Store, Milestone 4 (Milestone 3 is done, see above)
+### Next: Era III, Milestone 5 (location choice, second store, store managers, separate inventory
+and KPIs, store switching, inventory transfers). `state.store` will need to become `state.stores[]`
+with a save migration; most store functions already take `state.store` in one place.
+
+### Era II: First Retail Store, Milestone 4 (done; original notes kept for context)
 
 Brief list: restocking, cleaning, staff schedules and training, expanded customer archetypes
 (gift, hair-care, trend shoppers: these need gift sets / hair care products), store design score,

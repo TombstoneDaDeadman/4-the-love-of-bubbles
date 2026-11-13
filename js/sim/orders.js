@@ -10,8 +10,9 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---- Demand ---------------------------------------------------------------
 
-export function marketingBoost(state) {
-  return state.marketing.active.reduce((a, c) => a + CAMPAIGNS[c.id].boost, 0);
+// Sum of running campaign boosts on one channel ('online' orders or 'store' foot traffic).
+export function marketingBoost(state, channel = 'online') {
+  return state.marketing.active.reduce((a, c) => a + ((CAMPAIGNS[c.id].channel || 'online') === channel ? CAMPAIGNS[c.id].boost : 0), 0);
 }
 
 export function demandBreakdown(state) {

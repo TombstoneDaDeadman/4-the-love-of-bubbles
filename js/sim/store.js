@@ -12,9 +12,9 @@
 // Shoppers can never get stuck: every state has a time limit, unreachable targets are skipped,
 // and a shopper who cannot find a way out is walked to the door.
 
-import { STORE, STORE_POINTS, STARTER_LAYOUT, FURNITURE, ARCHETYPES, ARCHETYPE_ORDER, QUEUE_CELLS, CUSTOMER_NAMES, STORE_REVIEW_TEXT, PRODUCT_ORDER, DAY_LENGTH, SELL_BACK } from '../data.js';
+import { STORE, STORE_POINTS, STARTER_LAYOUT, FURNITURE, ARCHETYPES, ARCHETYPE_ORDER, QUEUE_CELLS, CUSTOMER_NAMES, STORE_REVIEW_TEXT, PRODUCT_ORDER, DAY_LENGTH, SELL_BACK, STORE_GRID, STORE_ROWS, LOYALTY } from '../data.js';
 import { transact } from './economy.js';
-import { getSku, refPrice, skuQuality, skuRating, addGoods } from './inventory.js';
+import { getSku, refPrice, skuQuality, skuRating, addGoods, productUnlocked } from './inventory.js';
 import { addReview, marketingBoost } from './orders.js';
 import { releaseTask } from './workers.js';
 import { checkPlacement, accessCells, cellCenter, cellOf, walkGrid, isWalkable, walkTo, FRONT, furnitureCenter } from './path.js';
@@ -39,6 +39,9 @@ export function newStoreState() {
     today: { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, reasons: {} },
     days: [],
     tutorial: { step: 0, done: false },
+    clean: 100,          // floor condition, 0-100 (messes count against it on top)
+    messes: [],          // spills and dropped bits waiting to be tidied
+    loyalty: false,      // loyalty card programme
   };
 }
 
@@ -83,14 +86,15 @@ function placeActor(a, point) {
 
 export function refreshCandidates(game) {
   const st = game.state.store;
-  st.candidates = ['cashier', 'associate', game.rand() < 0.5 ? 'cashier' : 'associate'].map((role) => makeStaff(game, role));
+  const roles = ['cashier', 'associate', 'stocker', 'maker'];
+  st.candidates = [roles[game.randInt(0, 1)], roles[game.randInt(1, 3)], game.pick(roles)].map((role) => makeStaff(game, role));
 }
 
 // ---- Displays and build mode ------------------------------------------------------------
 
 function newFurniture(game, type, i, j, rot) {
   const F = FURNITURE[type];
-  return { id: game.nextId('f'), type, i, j, rot, slots: Array.from({ length: F.slots }, () => ({ skuId: null, stock: 0, claimedBy: null })) };
+  return { id: game.nextId('f'), type, i, j, rot, slots: Array.from({ length: F.slots }, () => ({ skuId: null, stock: 0, claimedBy: null, refill: 0.5, rush: false })) };
 }
 
 export const isDisplay = (fu) => FURNITURE[fu.type].slots > 0;
@@ -204,24 +208,66 @@ export function hourCurve(t) {
   return 0.75 + 0.4 * Math.exp(-(((d - 0.35) / 0.11) ** 2)) + 0.5 * Math.exp(-(((d - 0.76) / 0.12) ** 2));
 }
 
+// ---- Cleanliness and store design (Milestone 4) --------------------------------------------
+
+export function cleanliness(state) {
+  const st = state.store;
+  if (!st) return 100;
+  return clamp(Math.round(st.clean - st.messes.length * 4), 0, 100);
+}
+
+// Store design score (0-100): what a shopper sees when they walk in. Each part is explained in
+// the Build panel so the player can see why it is high or low.
+export function designScore(state) {
+  const st = state.store, s = state;
+  const displays = st.furniture.filter(isDisplay);
+  const families = new Set(), unlocked = PRODUCT_ORDER.filter((id) => productUnlocked(s, id));
+  let slots = 0, stocked = 0;
+  for (const fu of displays) for (const sl of fu.slots) {
+    if (!sl.skuId) continue;
+    slots += 1;
+    if (sl.stock > 0) stocked += 1;
+    const k = getSku(s, sl.skuId);
+    if (k) families.add(k.productId);
+  }
+  const decor = st.furniture.reduce((a, fu) => a + (isDisplay(fu) ? 0 : FURNITURE[fu.type].appeal), 0);
+  // floor space used by furniture, as a share of the buildable floor
+  let used = 0;
+  for (const fu of st.furniture) { const F = FURNITURE[fu.type]; used += F.w * F.d; }
+  const floorCells = STORE_GRID.cols * (STORE_ROWS.floor[1] - STORE_ROWS.floor[0] + 1);
+  const occupancy = used / floorCells;
+  const entrance = STORE_POINTS.inside;
+  const welcome = displays.some((fu) => fu.type === 'table' && fu.slots.some((sl) => sl.stock > 0) && Math.hypot(furnitureCenter(fu).x - entrance.x, furnitureCenter(fu).z - entrance.z) < 4.5);
+  const parts = [
+    { id: 'variety', label: 'Product variety', value: Math.round(20 * (unlocked.length ? families.size / unlocked.length : 0)), max: 20, tip: 'Show every product line you make.' },
+    { id: 'stocked', label: 'Full displays', value: Math.round(20 * (slots ? stocked / slots : 0)), max: 20, tip: 'Empty spots look neglected.' },
+    { id: 'decor', label: 'Decor and comfort', value: Math.round(20 * Math.min(1, decor / 12)), max: 20, tip: 'Plants, lamps, benches and a tester bar.' },
+    { id: 'clean', label: 'Cleanliness', value: Math.round(20 * (cleanliness(s) / 100)), max: 20, tip: 'Staff tidy up between other jobs.' },
+    { id: 'space', label: 'Room to browse', value: Math.round(15 * clamp((0.6 - occupancy) / 0.25, 0, 1)), max: 15, tip: 'A crammed floor feels stressful.' },
+    { id: 'welcome', label: 'Welcome display', value: welcome ? 5 : 0, max: 5, tip: 'A stocked display table near the door.' },
+  ];
+  return { total: parts.reduce((a, p) => a + p.value, 0), parts };
+}
+
 export function trafficBreakdown(state) {
   const st = state.store;
   const rep = 0.55 + ((st.reputation * 0.6 + state.reputation * 0.4) / 5) * 0.75;
   const soul = 0.85 + (state.soul / 100) * 0.3;
-  const appeal = 1 + Math.min(0.35, storeAppeal(state) * 0.018);
+  const appeal = 0.8 + (designScore(state).total / 100) * 0.55;
   const daysOpen = state.time.day - (state.milestone.storeDay || state.time.day);
   const growth = 1 + Math.min(0.5, daysOpen * 0.05);
-  const marketing = 1 + marketingBoost(state) * 0.5;
+  const marketing = 1 + marketingBoost(state, 'store') + marketingBoost(state, 'online') * 0.25;
   const hour = hourCurve(state.time.t);
   return { rep, soul, appeal, growth, marketing, hour, total: rep * soul * appeal * growth * marketing * hour };
 }
 
 export function spawnCustomer(game) {
   const s = game.state, st = s.store;
-  let r = game.rand() * ARCHETYPE_ORDER.reduce((a, id) => a + ARCHETYPES[id].weight, 0), arch = ARCHETYPE_ORDER[0];
-  for (const id of ARCHETYPE_ORDER) { r -= ARCHETYPES[id].weight; if (r <= 0) { arch = id; break; } }
+  const weights = archetypeWeights(s);
+  let r = game.rand() * ARCHETYPE_ORDER.reduce((a, id) => a + weights[id], 0), arch = ARCHETYPE_ORDER[0];
+  for (const id of ARCHETYPE_ORDER) { r -= weights[id]; if (r <= 0 && weights[id] > 0) { arch = id; break; } }
   const A = ARCHETYPES[arch];
-  const pool = [...PRODUCT_ORDER], wants = [];
+  const pool = PRODUCT_ORDER.filter((id) => productUnlocked(s, id) && (A.products[id] || 0) > 0), wants = [];
   const nWants = game.randInt(A.wants[0], A.wants[1]);
   while (wants.length < nWants && pool.length) {
     let w = game.rand() * pool.reduce((a, id) => a + A.products[id], 0);
@@ -229,14 +275,17 @@ export function spawnCustomer(game) {
     for (; k < pool.length - 1; k++) { w -= A.products[pool[k]]; if (w <= 0) break; }
     wants.push(pool.splice(k, 1)[0]);
   }
+  const benches = Math.min(2, st.furniture.filter((f) => f.type === 'bench').length);
+  const patience = game.randInt(A.patience[0], A.patience[1]) * (1 + benches * 0.08) * (arch === 'regular' && st.loyalty ? 1.2 : 1);
+  const mood = 52 + designScore(s).total * 0.2 - (100 - cleanliness(s)) * 0.15;
   const fromLeft = game.rand() < 0.5;
   const p = STORE_POINTS[fromLeft ? 'streetL' : 'streetR'];
   const c = {
     id: game.nextId('c'), name: game.pick(CUSTOMER_NAMES), arch, look: randomLook(game),
     x: p.x, z: r2(p.z + (game.rand() - 0.5) * 0.8), face: p.face, path: null, pathKey: null, pathVer: -1,
     state: 'arrive', stateT: 0, life: 0, anim: 'walk',
-    wants, wantsN: wants.length, budget: game.randInt(A.budget[0], A.budget[1]), patience: game.randInt(A.patience[0], A.patience[1]),
-    mood: Math.round(60 + Math.min(12, storeAppeal(s) * 0.6)),
+    wants, wantsN: wants.length, budget: game.randInt(A.budget[0], A.budget[1]), patience: Math.round(patience),
+    mood: Math.round(mood), tested: false,
     visited: [], missed: [], basket: [], helped: false, helperId: null, wait: 0, timer: 0, target: null,
     exit: game.rand() < 0.5 ? 'streetL' : 'streetR', leg: 0, paid: false, reason: null,
   };
@@ -244,6 +293,32 @@ export function spawnCustomer(game) {
   st.stats.visitors += 1; st.today.visitors += 1;
   game.emit('shopperArrived', c);
   return c;
+}
+
+// Who walks in: the newer archetypes only come once the shop sells what they want; Trend
+// Shoppers follow marketing; loyalty cards bring regulars back more often.
+export function archetypeWeights(state) {
+  const st = state.store, out = {};
+  const buzz = marketingBoost(state, 'store') + marketingBoost(state, 'online') * 0.5;
+  for (const id of ARCHETYPE_ORDER) {
+    const A = ARCHETYPES[id];
+    let w = A.weight;
+    if (A.requires && !productUnlocked(state, A.requires)) w = 0;
+    if (A.trend) w *= 1 + buzz * 2;
+    if (id === 'regular' && st && st.loyalty) w *= 1.6;
+    out[id] = w;
+  }
+  return out;
+}
+
+export function buyLoyalty(game) {
+  const st = game.state.store;
+  if (!st) return { ok: false, reason: 'You need a shop for that.' };
+  if (st.loyalty) return { ok: false, reason: 'Already running.' };
+  if (!transact(game, -LOYALTY.cost, 'Marketing', 'Loyalty cards')) return { ok: false, reason: 'Not enough cash.' };
+  st.loyalty = true;
+  game.emit('loyalty', {});
+  return { ok: true };
 }
 
 // ---- Shopper behaviour ------------------------------------------------------------------
@@ -256,13 +331,21 @@ export const basketTotal = (c) => r2(c.basket.reduce((a, l) => a + l.qty * l.pri
 function decide(game, c) {
   const s = game.state, st = s.store;
   const maxVisits = Math.min(4, c.wantsN + 2);
+  // Some shoppers stop at the tester bar first.
+  if (!c.tested && c.wants.length && c.visited.length < maxVisits && game.rand() < 0.4) {
+    const tester = st.furniture.find((f) => f.type === 'tester' && !c.visited.includes(f.id));
+    const pt = tester && slotPoint(s, tester, -1, c.x, c.z, (game.rand() - 0.5) * 0.3);
+    if (pt) { c.target = { fid: tester.id, slot: -1, ...pt, ver: st.layoutVer }; setState(c, 'walk'); return; }
+    c.tested = true;
+  }
   if (c.wants.length && c.visited.length < maxVisits) {
     const opts = st.furniture.filter((f) => isDisplay(f) && !c.visited.includes(f.id));
     if (opts.length) {
       const ws = opts.map((f) => {
         const shows = f.slots.some((sl) => { const k = sl.skuId && getSku(s, sl.skuId); return k && c.wants.includes(k.productId); });
         const ctr = furnitureCenter(f);
-        return FURNITURE[f.type].visibility * (1 + (shows ? 2 : 0)) / (1 + Math.hypot(ctr.x - c.x, ctr.z - c.z) * 0.12);
+        const tableLover = ARCHETYPES[c.arch].tables && f.type === 'table' ? 1.8 : 1;
+        return FURNITURE[f.type].visibility * tableLover * (1 + (shows ? 2 : 0)) / (1 + Math.hypot(ctr.x - c.x, ctr.z - c.z) * 0.12);
       });
       let r = game.rand() * ws.reduce((a, b) => a + b, 0), pick = opts[opts.length - 1];
       for (let k = 0; k < opts.length; k++) { r -= ws[k]; if (r <= 0) { pick = opts[k]; break; } }
@@ -296,7 +379,13 @@ function evaluate(game, c) {
   const fu = getFurniture(s, c.target && c.target.fid);
   if (!fu) return;
   c.visited.push(fu.id);
+  if (fu.type === 'tester') { c.tested = true; c.tried = true; c.mood += 6; thought(game, c, 'tester'); return; }
   const A = ARCHETYPES[c.arch], F = FURNITURE[fu.type];
+  // Busy displays get messy: a spilled scrub, a dropped petal, a knocked-over tester.
+  if (st.messes.length < STORE.maxMesses && game.rand() < STORE.messChance) {
+    st.messes.push({ id: game.nextId('m'), x: r2(c.x + (game.rand() - 0.5) * 0.5), z: r2(c.z + (game.rand() - 0.5) * 0.5), kind: game.pick(['spill', 'petals', 'scrub']), claimedBy: null });
+  }
+  if (st.messes.some((m) => Math.hypot(m.x - c.x, m.z - c.z) < 1.6)) { c.mood -= 3; if (!c.saidDirty) { c.saidDirty = true; thought(game, c, 'dirty'); } }
   let bought = false, pricey = false;
   for (const slot of fu.slots) {
     const sku = slot.skuId && getSku(s, slot.skuId);
@@ -305,7 +394,8 @@ function evaluate(game, c) {
     const priceFit = 1 - A.sens * Math.max(0, ratio - 1) * 1.1 + Math.max(0, 1 - ratio) * 0.4;
     const rating = skuRating(sku) || 4;
     const tierFit = 1 - 0.16 * Math.abs(sku.tier - A.tier) + (A.tier === 2 ? (rating - 4) * 0.08 : 0) + (skuQuality(sku) - 70) / 300;
-    const score = priceFit * tierFit * (c.helped ? 1.15 : 1) + (game.rand() - 0.5) * 0.2;
+    const trendy = A.trend ? Math.min(0.25, sku.sold * 0.004) : 0;
+    const score = priceFit * tierFit * (c.helped ? 1.15 : 1) * (c.tried ? 1.1 : 1) + trendy + (game.rand() - 0.5) * 0.2;
     if (c.wants.includes(sku.productId)) {
       if (slot.stock <= 0) {
         if (!c.missed.includes(sku.productId)) { c.missed.push(sku.productId); c.mood -= 12; st.stats.stockouts += 1; st.today.stockouts += 1; thought(game, c, 'stockout'); }
@@ -387,7 +477,7 @@ function pay(game, c) {
   for (const l of c.basket) {
     const sku = getSku(s, l.skuId);
     units += l.qty;
-    if (sku) { sku.sold += l.qty; q += skuQuality(sku) * l.qty; }
+    if (sku) { sku.sold += l.qty; sku.storeSold = (sku.storeSold || 0) + l.qty; sku.storeRevenue = r2((sku.storeRevenue || 0) + l.qty * l.price); q += skuQuality(sku) * l.qty; }
   }
   s.stats.unitsSold += units;
   st.stats.items += units; st.today.items += units;
@@ -406,6 +496,7 @@ function pay(game, c) {
 // A shopper's visit becomes a rating; some write a review.
 function finish(game, c) {
   const s = game.state, st = s.store;
+  st.clean = clamp(st.clean - STORE.wearPerVisit, 0, 100);
   const m = clamp(c.mood, 0, 100);
   const stars = m >= 82 ? 5 : m >= 66 ? 4 : m >= 50 ? 3 : m >= 34 ? 2 : 1;
   st.ratings.push(stars);
@@ -526,7 +617,11 @@ export function closeStoreDay(state) {
   const st = state.store;
   if (!st) return null;
   const t = st.today;
-  const summary = { day: state.time.day, visitors: t.visitors, buyers: t.buyers, walkouts: t.walkouts, items: t.items, revenue: t.revenue, stockouts: t.stockouts, missed: t.missed, rating: st.reputation, reasons: { ...t.reasons } };
+  const clean = cleanliness(state);
+  const summary = { day: state.time.day, visitors: t.visitors, buyers: t.buyers, walkouts: t.walkouts, items: t.items, revenue: t.revenue, stockouts: t.stockouts, missed: t.missed, rating: st.reputation, clean, design: designScore(state).total, reasons: { ...t.reasons } };
+  // A grubby shop wears at the brand; closing-time tidy-up is quicker with a team.
+  if (clean < 50) state.soul = clamp(state.soul - 1.5, 0, 100);
+  st.clean = clamp(st.clean + (st.staff.length ? 30 : 15), 0, 100);
   st.days.push(summary);
   if (st.days.length > 30) st.days.shift();
   st.today = { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, reasons: {} };
@@ -534,3 +629,49 @@ export function closeStoreDay(state) {
 }
 
 export { cellOf };
+
+// ---- Store profitability report (brief: "store profit reports reconcile with the ledger") ----
+// Built only from the ledger's closed-day category totals, so every number traces back to a
+// recorded transaction. Cost groups always add up to the day's expenses.
+export const COST_GROUPS = [
+  { id: 'stock', label: 'Ingredients & packaging', cats: ['Ingredients', 'Packaging'] },
+  { id: 'staff', label: 'Staff', cats: ['Staff wages', 'Staff training'] },
+  { id: 'premises', label: 'Rent & utilities', cats: ['Rent / lease', 'Utilities'] },
+  { id: 'marketing', label: 'Marketing', cats: ['Marketing'] },
+  { id: 'fixtures', label: 'Fixtures & equipment', cats: ['Store fixtures', 'Equipment'] },
+  { id: 'rnd', label: 'Research & development', cats: ['Research & development'] },
+];
+export function profitReport(state, n = 7) {
+  const storeDays = state.store ? state.store.days : [];
+  return state.ledger.days.slice(-n).map((d) => {
+    const cats = d.cats || {};
+    const cost = (names) => r2(-names.reduce((a, c) => a + Math.min(0, cats[c] || 0), 0));
+    const groups = COST_GROUPS.map((g) => ({ ...g, value: cost(g.cats) }));
+    const known = new Set(COST_GROUPS.flatMap((g) => g.cats));
+    const other = r2(-Object.entries(cats).reduce((a, [c, v]) => a + (known.has(c) || v >= 0 ? 0 : v), 0));
+    groups.push({ id: 'other', label: 'Other', cats: [], value: other });
+    // money back from selling fixtures is income, not a negative cost
+    const store = r2(cats['Store sales'] || 0);
+    const online = r2((cats['Online orders'] || 0) + (cats['Local orders'] || 0) + (cats['Big orders'] || 0));
+    const sd = storeDays.find((x) => x.day === d.day);
+    return { day: d.day, revenue: d.revenue, expenses: d.expenses, profit: d.profit, store, online, otherIncome: r2(d.revenue - store - online), groups, visitors: sd ? sd.visitors : 0, buyers: sd ? sd.buyers : 0, rating: sd ? sd.rating : null, clean: sd ? sd.clean : null, design: sd ? sd.design : null };
+  });
+}
+
+// ---- Restock controls (Milestone 4) ---------------------------------------------------------
+export function setRefill(game, fid, k, level) {
+  const fu = getFurniture(game.state, fid);
+  if (!fu || !fu.slots[k] || !STORE.refillLevels.includes(level)) return { ok: false, reason: 'No such display.' };
+  fu.slots[k].refill = level;
+  return { ok: true };
+}
+export function rushSlot(game, fid, k) {
+  const s = game.state, fu = getFurniture(s, fid);
+  if (!fu || !fu.slots[k]) return { ok: false, reason: 'No such display.' };
+  const slot = fu.slots[k];
+  if (!slot.skuId) return { ok: false, reason: 'Choose a product for it first.' };
+  if (slot.stock >= FURNITURE[fu.type].slotCap) return { ok: false, reason: 'It is already full.' };
+  if (!(s.goods[slot.skuId] > 0)) return { ok: false, reason: 'None in back stock. Make a batch first.' };
+  slot.rush = true;
+  return { ok: true };
+}

@@ -33,7 +33,7 @@ export function furnitureCenter(fu) {
 // a table from any side. Optionally only the half of a shelf's front that serves one slot.
 export function accessCells(fu, slot = -1) {
   const f = FURNITURE[fu.type];
-  if (!f.slots) return [];
+  if (!f.slots && !f.access) return [];
   const fp = footprint(fu.type, fu.i, fu.j, fu.rot);
   const out = [];
   if (fu.type === 'table') {

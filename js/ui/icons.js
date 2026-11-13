@@ -28,6 +28,9 @@ export const ICONS = {
 // Product silhouettes for swatches: jar (body butter), bar (soap), tub (scrub).
 const P = 'fill="#fffdf8" fill-opacity=".94" stroke="rgba(74,55,40,.5)" stroke-width="1.300" stroke-linejoin="round"';
 const PRODUCT_SVG = {
+  bottle: `<rect ${P} x="7.500" y="9" width="9" height="11.500" rx="2.500"/><rect ${P} x="10.300" y="5.500" width="3.400" height="3.600" rx="1"/><path ${P} d="M11 5.500V3.500h5"/><path d="M9.500 14h5" stroke="rgba(74,55,40,.35)" stroke-width="1.200" stroke-linecap="round"/>`,
+  bomb: `<circle ${P} cx="12" cy="11.500" r="6.800"/><path d="M5.400 11.200c3.500 1.600 9.700 1.600 13.200 0" fill="none" stroke="rgba(74,55,40,.4)" stroke-width="1.300"/><path ${P} d="M7.500 17.200h9l-1 3.300h-7z"/>`,
+  gift: `<rect ${P} x="4" y="9.500" width="16" height="10.500" rx="1.500"/><rect ${P} x="3.300" y="7" width="17.400" height="3.500" rx="1"/><path d="M12 7v13" stroke="rgba(233,128,155,.9)" stroke-width="2.200"/><path ${P} d="M12 7c-2.500-3.500-6-2-4.500 0zM12 7c2.500-3.500 6-2 4.500 0z"/>`,
   jar: `<rect ${P} x="6.500" y="8.800" width="11" height="11.200" rx="2.800"/><rect ${P} x="7.500" y="4.800" width="9" height="4" rx="1.300"/><path d="M9 13.500h6M9 16h4" stroke="rgba(74,55,40,.35)" stroke-width="1.200" stroke-linecap="round"/>`,
   bar: `<rect ${P} x="3.500" y="9" width="17" height="9.500" rx="3.300"/><rect x="9" y="9" width="6" height="9.500" fill="rgba(214,183,140,.9)" stroke="rgba(74,55,40,.4)" stroke-width="1"/><circle ${P} cx="17.500" cy="6" r="1.800"/><circle ${P} cx="13.800" cy="4.600" r="1.200"/>`,
   tub: `<path ${P} d="M6.200 10.500h11.600l-1 9.300H7.200z"/><rect ${P} x="5" y="6.800" width="14" height="3.800" rx="1.400"/><path d="M9.500 14.500h5" stroke="rgba(74,55,40,.35)" stroke-width="1.200" stroke-linecap="round"/>`,

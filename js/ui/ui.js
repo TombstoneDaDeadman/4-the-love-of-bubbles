@@ -4,7 +4,7 @@
 import { INGREDIENTS, PRODUCTS, SCENTS, CAMPAIGNS, UPGRADES, HOME_GOALS, DAY_LENGTH } from '../data.js';
 import { productionPanel, suppliesPanel, recipesPanel, upgradesPanel, marketingPanel, reportsPanel, staffPanel, orderCards, money, esc, starStr, skuSwatch } from './panels.js';
 import { queueBatch, cancelJob, stationProgress } from '../sim/production.js';
-import { orderSupplies, batchNeeds, setPrice, setSkuPaused, createVariant, getSku, ingredientFree } from '../sim/inventory.js';
+import { orderSupplies, batchNeeds, setPrice, setSkuPaused, createVariant, getSku, ingredientFree, unlockLine } from '../sim/inventory.js';
 import { fulfillOrder, spawnOrder } from '../sim/orders.js';
 import { buyUpgrade, startCampaign, homeGoals, homeProgress, signLease, clockLabel } from '../sim/business.js';
 import { todayProfit, transact } from '../sim/economy.js';
@@ -12,8 +12,8 @@ import { sfx, audioSettings, setMusic, setSfx } from '../audio.js';
 import { ICONS, productIcon } from './icons.js';
 import { buildPanel, storePanel, displayPanel, storeStaffPanel } from './storePanels.js';
 import { FURNITURE, STORE_GRID, STORE, STAFF_ROLES } from '../data.js';
-import { placeFurniture, moveFurniture, rotateFurniture, sellFurniture, assignSlot, spawnCustomer, getFurniture } from '../sim/store.js';
-import { hireStaff, fireStaff, setStaffRole, staffRecord } from '../sim/staff.js';
+import { placeFurniture, moveFurniture, rotateFurniture, sellFurniture, assignSlot, spawnCustomer, getFurniture, setRefill, rushSlot, buyLoyalty } from '../sim/store.js';
+import { hireStaff, fireStaff, setStaffRole, staffRecord, setShift, trainStaff } from '../sim/staff.js';
 import { checkPlacement, footprint } from '../sim/path.js';
 
 const NAV = [
@@ -304,6 +304,12 @@ export class GameUI {
       case 'inspect': sfx('click'); this.inspect(id); break;
       case 'slot': result(assignSlot(g, id, Number(node.dataset.k), node.dataset.sku || null)); break;
       case 's-hire': result(hireStaff(g, id, node.dataset.role), 'upgrade'); break;
+      case 's-shift': result(setShift(g, id, node.dataset.shift)); break;
+      case 's-train': result(trainStaff(g, id, node.dataset.skill), 'upgrade'); break;
+      case 'refill': result(setRefill(g, id, Number(node.dataset.k), Number(node.dataset.lv))); break;
+      case 'rush': result(rushSlot(g, id, Number(node.dataset.k)), 'queue'); break;
+      case 'line': result(unlockLine(g, id), 'upgrade'); break;
+      case 'loyalty': result(buyLoyalty(g), 'upgrade'); break;
       case 's-role': result(setStaffRole(g, id, node.dataset.role)); break;
       case 's-fire': {
         const rec = staffRecord(s, id);
@@ -393,11 +399,14 @@ export class GameUI {
     on('outgrown', () => { sfx('fanfare'); this.showOutgrown(); });
     on('leaseSigned', () => this.app.save(true));
     // ---- the store ----
-    const THOUGHT = { stockout: ['😕', 'Sold out!', 'bad'], price: ['💸', 'Too pricey', 'bad'], happy: ['😊', 'Love this!', 'star'], wait: ['⏳', 'Long line…', 'bad'], gaveup: ['💔', 'Gave up', 'bad'], helped: ['💬', 'Thanks!', 'star'] };
+    const THOUGHT = { stockout: ['😕', 'Sold out!', 'bad'], price: ['💸', 'Too pricey', 'bad'], happy: ['😊', 'Love this!', 'star'], wait: ['⏳', 'Long line…', 'bad'], gaveup: ['💔', 'Gave up', 'bad'], helped: ['💬', 'Thanks!', 'star'], dirty: ['🧹', 'Bit messy…', 'bad'], tester: ['🧪', 'Ooh, smells lovely', 'star'] };
     on('shopperThought', ({ id, kind }) => { const t = THOUGHT[kind]; if (t) this.float(`c:${id}`, `${t[0]} ${t[1]}`, t[2] === 'bad' ? 'thought bad' : 'thought'); });
     on('storeSale', ({ total }) => { sfx('coin'); w.burst('coin', 'counter', 5); this.float('counter', `+${money(total)}`, 'money'); this.bump(); });
     on('staffHired', (rec) => { this.toast('🙋', `${rec.name} joined the team`, `${STAFF_ROLES[rec.role].name} · ${money(rec.wage)}/day`, 'good'); const t = g.state.store.tutorial; if (!t.done && t.step === 0) this._storeTutAdvance(1); });
     on('furniturePlaced', () => w.burst('spark', 'door', 0));
+    on('lineUnlocked', ({ id }) => this.toast('🌟', `New product line: ${PRODUCTS[id].name}!`, 'Your first recipe is in the Recipe Book. Give it a display.', 'gold'));
+    on('staffTrained', ({ rec, skill }) => { sfx('star'); this.toast('🎓', `${rec.name} finished training`, `${skill === 'speed' ? 'Speed' : 'Service'} is now ${Math.round(rec[skill] * 100)}`, 'good'); });
+    on('loyalty', () => this.toast('💳', 'Loyalty cards are out', 'Regulars will be back more often', 'good'));
     on('displayRestocked', ({ fid }) => { sfx('pop'); w.burst('bubble', `f:${fid}`, 5); });
     on('cash', ({ amount }) => { if (amount < 0) this.bump(); });
   }

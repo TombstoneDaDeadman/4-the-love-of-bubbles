@@ -63,6 +63,37 @@ export class StoreWorld {
     this._buildBuildMode();
     this._buildHover();
     this._buildBubbles();
+    this._buildMesses();
+  }
+
+  // Spills and wear (Milestone 4 cleanliness): decals for each mess, plus a faint grime layer.
+  _buildMesses() {
+    const tex = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 128; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+    const blob = (g, col, n, seed) => { let x = seed; const r = () => { x = (x * 16807) % 2147483647; return x / 2147483647; }; g.fillStyle = col; for (let i = 0; i < n; i++) { g.beginPath(); g.ellipse(64 + (r() - 0.5) * 60, 64 + (r() - 0.5) * 60, 8 + r() * 22, 6 + r() * 16, r() * 3, 0, Math.PI * 2); g.fill(); } };
+    this.messTex = {
+      spill: tex((g) => blob(g, 'rgba(232,190,120,0.75)', 7, 3)),
+      scrub: tex((g) => { blob(g, 'rgba(250,244,230,0.85)', 5, 7); g.fillStyle = 'rgba(200,170,130,0.9)'; for (let i = 0; i < 60; i++) g.fillRect(30 + ((i * 37) % 70), 30 + ((i * 53) % 70), 2, 2); }),
+      petals: tex((g) => { for (let i = 0; i < 9; i++) { g.fillStyle = i % 2 ? 'rgba(240,154,176,0.95)' : 'rgba(185,162,230,0.95)'; g.beginPath(); g.ellipse(25 + ((i * 41) % 80), 25 + ((i * 29) % 80), 9, 5, i, 0, Math.PI * 2); g.fill(); } }),
+    };
+    this.messViews = new Map();
+    const grime = tex((g) => { g.fillStyle = 'rgba(0,0,0,0)'; g.fillRect(0, 0, 128, 128); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(110,85,60,${0.05 + (i % 5) * 0.03})`; g.beginPath(); g.arc((i * 47) % 128, (i * 89) % 128, 1 + (i % 4) * 1.6, 0, Math.PI * 2); g.fill(); } });
+    grime.wrapS = grime.wrapT = THREE.RepeatWrapping; grime.repeat.set(7, 4);
+    this.grime = new THREE.Mesh(new THREE.PlaneGeometry(W, HZ - PZ), new THREE.MeshBasicMaterial({ map: grime, transparent: true, opacity: 0, depthWrite: false }));
+    this.grime.rotation.x = -Math.PI / 2; this.grime.position.set(0, 0.006, (HZ + PZ) / 2);
+    this.fx3d.add(this.grime);
+  }
+  _syncMesses() {
+    const st = this.game.state.store, seen = new Set();
+    for (const m of st.messes) {
+      seen.add(m.id);
+      if (this.messViews.has(m.id)) continue;
+      const d = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), new THREE.MeshBasicMaterial({ map: this.messTex[m.kind] || this.messTex.spill, transparent: true, depthWrite: false }));
+      d.rotation.x = -Math.PI / 2; d.rotation.z = (m.x * 7 + m.z * 3) % 6;
+      d.position.set(m.x, 0.012, m.z);
+      this.fx3d.add(d); this.messViews.set(m.id, d);
+    }
+    for (const [id, d] of this.messViews) if (!seen.has(id)) { this.fx3d.remove(d); d.material.dispose(); d.geometry.dispose(); this.messViews.delete(id); this.burst('bubble', new THREE.Vector3(d.position.x, 0.9, d.position.z), 5); }
+    this.grime.material.opacity = Math.max(0, (85 - st.clean) / 85) * 0.9;
   }
 
   _hit(w, h, d, x, y, z, id) {
@@ -412,6 +443,31 @@ export class StoreWorld {
       const runner = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.012, 6, 40), mat(PAL.blush));
       runner.rotation.x = Math.PI / 2; g.add(at(runner, 0, 0.778, 0));
       g.add(at(sphere(0.09, mat(PAL.leaf), 10), 0.05, 1.04, 0.0), at(sphere(0.07, mat('#f09ab0'), 8), -0.06, 1.06, 0.05));
+    } else if (type === 'tester') {
+      // tester bar: a counter with open sample jars, a mirror and a little sink
+      const top = mat(PAL.cream, { roughness: 0.5 }), wood = mat(PAL.woodLight, { roughness: 0.7 });
+      g.add(at(box(1.9, 0.86, 0.6, wood, 0.02), 0, 0.43, -0.1));
+      g.add(at(box(1.96, 0.05, 0.66, top, 0.012), 0, 0.885, -0.1));
+      g.add(at(box(1.2, 0.8, 0.04, mat('#dfeef0', { roughness: 0.05, metalness: 0.4 })), 0, 1.35, -0.38));
+      g.add(at(box(1.28, 0.88, 0.03, mat(PAL.woodDark)), 0, 1.35, -0.4));
+      g.add(at(cyl(0.12, 0.1, 0.06, mat(PAL.metal, { metalness: 0.7, roughness: 0.3 }), 18), 0.7, 0.92, -0.12));
+      ['#f09ab0', '#95dbb9', '#f8b84a', '#b9a2e6', '#8fd0e6'].forEach((c, k) => {
+        g.add(at(cyl(0.05, 0.05, 0.05, mat('#ffffff', { roughness: 0.2 }), 14), -0.75 + k * 0.28, 0.935, 0.05));
+        g.add(at(cyl(0.045, 0.045, 0.012, mat(c, { roughness: 0.6 }), 14), -0.75 + k * 0.28, 0.96, 0.05));
+      });
+      g.add(at(box(0.5, 0.12, 0.03, mat(PAL.blush)), 0, 1.86, -0.38));
+    } else if (type === 'bench') {
+      const cush = mat('#e7a3b3', { roughness: 0.95 }), wood = mat(PAL.wood, { roughness: 0.6 });
+      g.add(at(box(1.3, 0.12, 0.5, wood, 0.02), 0, 0.4, 0));
+      g.add(at(box(1.24, 0.1, 0.46, cush, 0.04), 0, 0.5, 0));
+      g.add(at(box(1.3, 0.45, 0.08, wood, 0.02), 0, 0.72, -0.22));
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(at(box(0.06, 0.36, 0.06, mat(PAL.woodDark)), sx * 0.58, 0.18, sz * 0.18));
+      g.add(at(box(0.3, 0.26, 0.12, mat('#cfe0d2', { roughness: 0.95 }), 0.05), -0.4, 0.66, -0.1));
+    } else if (type === 'lamp') {
+      const brass = mat(PAL.gold, { metalness: 0.75, roughness: 0.3 });
+      g.add(at(cyl(0.16, 0.18, 0.03, brass, 20), 0, 0.015, 0));
+      g.add(at(cyl(0.015, 0.015, 1.5, brass, 8), 0, 0.77, 0));
+      g.add(at(cyl(0.12, 0.22, 0.26, mat('#fbf0d9', { roughness: 0.6, emissive: '#ffdca0', emissiveIntensity: 0.6, side: THREE.DoubleSide }), 20), 0, 1.6, 0));
     } else if (type === 'plant') {
       const p = plant(1.6);
       g.add(p);
@@ -446,7 +502,7 @@ export class StoreWorld {
         v.g.rotation.y = fu.rot * Math.PI / 2;
         const fp = footprint(fu.type, fu.i, fu.j, fu.rot);
         const hw = (fp.i1 - fp.i0 + 1) * CELL, hd = (fp.j1 - fp.j0 + 1) * CELL;
-        const hit = this._hit(hw * 0.92, fu.type === 'plant' ? 1.6 : 1.8, hd * 0.92, c.x, 0.9, c.z, `f:${fu.id}`);
+        const hit = this._hit(Math.max(0.6, hw * 0.92), fu.type === 'plant' || fu.type === 'lamp' ? 1.7 : 1.8, Math.max(0.6, hd * 0.92), c.x, 0.9, c.z, `f:${fu.id}`);
         this.hits.push(hit);
         this.anchors[`f:${fu.id}`] = (this.anchors[`f:${fu.id}`] || new THREE.Vector3()).set(c.x, fu.type === 'shelf' ? 2.25 : 1.6, c.z);
       }
@@ -656,6 +712,12 @@ export class StoreWorld {
       g.position.set(0.22, -0.48, -0.25);
       return g;
     };
+    if (kind === 'mop') return () => {
+      const g = new THREE.Group();
+      const h = cyl(0.012, 0.012, 1.3, mat(PAL.woodLight), 6); h.rotation.x = 0.5; g.add(at(h, 0, -0.1, 0.25));
+      g.add(at(box(0.3, 0.05, 0.12, mat('#9fd0cc', { roughness: 1 }), 0.02), 0, -0.68, 0.55));
+      return g;
+    };
     if (kind === 'crate') return () => { const g = crate(); g.add(at(ingredientMesh('shea'), -0.08, 0.02, 0)); g.add(at(ingredientMesh('oil'), 0.09, 0.02, 0.02)); g.position.y = -0.1; return g; };
     return () => {
       const g = new THREE.Group();
@@ -767,17 +829,17 @@ export class StoreWorld {
     this.mixer.visible = !!s.upgrades.mixer;
 
     // pantry and back stock
-    const psig = INGREDIENT_ORDER.map((id) => s.ingredients[id]).join(',');
+    const psig = INGREDIENT_ORDER.map((id) => s.ingredients[id] || 0).join(',');
     if (psig !== this._sig.pantry) {
       this._sig.pantry = psig;
       disposeMerged(this.pantryHolder); this.pantryHolder.clear();
       const ys = this.pantry.userData.ys, cap = ingredientCap(s);
       INGREDIENT_ORDER.forEach((id, i) => {
-        const n = Math.min(5, Math.ceil((s.ingredients[id] / Math.max(1, cap)) * 40));
-        const shelf = 3 - Math.floor(i / 2), side = i % 2;
+        const n = Math.min(4, Math.ceil(((s.ingredients[id] || 0) / Math.max(1, cap)) * 40));
+        const shelf = 3 - Math.floor(i / 3), side = i % 3;
         for (let k = 0; k < n; k++) {
           const m = ingredientMesh(id);
-          m.position.set(-0.85 + side * 0.95 + (k % 3) * 0.24 + (k >= 3 ? 0.12 : 0), ys[shelf], k >= 3 ? -0.08 : 0.08);
+          m.position.set(-0.8 + side * 0.6 + (k % 2) * 0.2 + (k >= 2 ? 0.1 : 0), ys[shelf], k >= 2 ? -0.08 : 0.08);
           this.pantryHolder.add(m);
         }
       });
@@ -812,12 +874,15 @@ export class StoreWorld {
     this.parcelPile.forEach((b, i) => { b.visible = i < Math.min(4, queued); });
 
     this._syncFurniture();
+    this._syncMesses();
 
     // staff + founder
     for (const actor of s.actors) {
       const c = this._staffChar(actor);
+      c.root.visible = !actor.away;
       this._moveChar(c, actor, dt, this.forceAnim ? dt : simDt, this.forceAnim || (s.time.paused ? 'idle' : actor.anim));
-      const [key, fac] = this._staffCarry(actor);
+      const mopping = actor.task && actor.task.type === 'mop' && actor.task.timer >= 0;
+      const [key, fac] = mopping ? ['mop', this._carry('mop')] : this._staffCarry(actor);
       c.setCarry(key, fac);
       (this.anchors[actor.id] = this.anchors[actor.id] || new THREE.Vector3()).set(c.root.position.x, 1.95, c.root.position.z);
     }

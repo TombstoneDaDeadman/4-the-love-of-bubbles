@@ -1,7 +1,7 @@
 // InventoryService + RecipeService: ingredient and finished-goods quantities, supply orders,
 // recipe maths. Quantities can never go negative: every removal is checked first.
 
-import { INGREDIENTS, PRODUCTS, TIERS, BASE_INGREDIENT_CAP, BASE_GOODS_CAP, VARIANT_COST, MAX_SKUS_HOME, SCENTS, STORE } from '../data.js';
+import { INGREDIENTS, PRODUCTS, TIERS, BASE_INGREDIENT_CAP, BASE_GOODS_CAP, VARIANT_COST, MAX_SKUS_HOME, MAX_SKUS_STORE, SCENTS, STORE, PRODUCT_LINES } from '../data.js';
 import { transact, canAfford } from './economy.js';
 import { makeSku } from './core.js';
 
@@ -132,11 +132,39 @@ export function setSkuPaused(game, skuId, paused) {
   return true;
 }
 
+export const maxSkus = (state) => (state.era === 'store' ? MAX_SKUS_STORE : MAX_SKUS_HOME);
+// The three original products are always available; new lines are developed in the store era.
+export const productUnlocked = (state, id) => !!PRODUCTS[id] && (!PRODUCTS[id].line || !!(state.lines && state.lines[id]));
+export function ingredientInUse(state, id) {
+  const line = INGREDIENTS[id] && INGREDIENTS[id].line;
+  return !line || productUnlocked(state, line) || (state.ingredients[id] || 0) > 0;
+}
+
+// Develop a whole new product line (hair care, bath bombs, gift sets). Comes with a first recipe.
+export function unlockLine(game, id) {
+  const s = game.state, L = PRODUCT_LINES[id];
+  if (!L) return { ok: false, reason: 'Unknown product line.' };
+  if (s.era !== 'store') return { ok: false, reason: 'New product lines come with the store.' };
+  if (productUnlocked(s, id)) return { ok: false, reason: 'You already make this.' };
+  if (s.skus.length >= maxSkus(s)) return { ok: false, reason: 'The recipe book is full.' };
+  if (!transact(game, -L.cost, 'Research & development', `${PRODUCTS[id].name} line`)) return { ok: false, reason: 'Not enough cash.' };
+  s.lines = s.lines || {};
+  s.lines[id] = true;
+  for (const ing of Object.keys(INGREDIENTS)) if (s.ingredients[ing] === undefined) s.ingredients[ing] = 0;
+  const sku = makeSku(game.nextId('sku'), id, L.starter, 0);
+  s.skus.push(sku);
+  s.goods[sku.id] = 0;
+  game.emit('lineUnlocked', { id, sku });
+  game.emit('skuCreated', sku);
+  return { ok: true, sku };
+}
+
 // Recipe book: duplicate a formula into a new scent / tier. Costs a small R&D fee.
 export function createVariant(game, productId, scentId, tier) {
   const s = game.state;
   if (!PRODUCTS[productId] || !SCENTS[scentId] || !TIERS[tier]) return { ok: false, reason: 'Unknown recipe.' };
-  if (s.skus.length >= MAX_SKUS_HOME) return { ok: false, reason: 'The recipe book is full for now.' };
+  if (!productUnlocked(s, productId)) return { ok: false, reason: 'Develop that product line first.' };
+  if (s.skus.length >= maxSkus(s)) return { ok: false, reason: 'The recipe book is full for now.' };
   if (s.skus.some((k) => k.productId === productId && k.scentId === scentId && k.tier === tier)) {
     return { ok: false, reason: 'You already make that exact recipe.' };
   }

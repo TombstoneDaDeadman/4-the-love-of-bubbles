@@ -1,7 +1,7 @@
 // Static game data. Nothing in this file is mutated at runtime.
 // (Mirrors the brief's "ScriptableObject" layer: definitions here, live state in sim/state.js.)
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 // One business day (08:00 -> 20:00) lasts DAY_LENGTH sim-seconds at 1x speed.
 export const DAY_LENGTH = 240;
@@ -18,17 +18,33 @@ export const INGREDIENTS = {
   fragrance: { id: 'fragrance', name: 'Botanical Blend',      category: 'Modifier',  cost: 1.6,  lot: 4,  lead: 12, supplier: 'Meadow & Petal',         color: '#b9a2e6', icon: '🌿', note: 'Scent and botanicals. Used in every product.' },
   premium:   { id: 'premium',   name: 'Luxe Essential Oils',  category: 'Modifier',  cost: 3.6,  lot: 3,  lead: 18, supplier: 'Maison Verte Apothecary', color: '#e7a6b8', icon: '🌸', note: 'Premium oils for Luxe-tier formulas.' },
   jar:       { id: 'jar',       name: 'Glass Jars',           category: 'Packaging', cost: 0.7,  lot: 12, lead: 10, supplier: 'Clearline Packaging',    color: '#cfe6ea', icon: '🫙', note: 'Jars for body butter and scrubs.' },
-  wrap:      { id: 'wrap',      name: 'Soap Wraps & Boxes',   category: 'Packaging', cost: 0.35, lot: 16, lead: 8,  supplier: 'Clearline Packaging',    color: '#d9b98a', icon: '🎁', note: 'Kraft wraps and boxes for soap bars.' },
+  wrap:      { id: 'wrap',      name: 'Soap Wraps & Boxes',   category: 'Packaging', cost: 0.35, lot: 16, lead: 8,  supplier: 'Clearline Packaging',    color: '#d9b98a', icon: '🎁', note: 'Kraft wraps and boxes for soap bars and bath bombs.' },
+  // Era II product lines (unlocked in the Recipe Book once the store is open)
+  bottle:    { id: 'bottle',    name: 'Amber Pump Bottles',   category: 'Packaging', cost: 0.9,  lot: 12, lead: 12, supplier: 'Clearline Packaging',    color: '#c98a4a', icon: '🧴', note: 'Pump bottles for hair oil.', line: 'hair' },
+  fizz:      { id: 'fizz',      name: 'Baking Soda & Citric', category: 'Base',      cost: 0.55, lot: 8,  lead: 8,  supplier: 'Sweetwater Pantry',      color: '#eef3f6', icon: '🫧', note: 'The fizz in every bath bomb.', line: 'bomb' },
+  giftbox:   { id: 'giftbox',   name: 'Gift Boxes & Ribbon',  category: 'Packaging', cost: 1.4,  lot: 8,  lead: 14, supplier: 'Petal & Pine Paper',     color: '#f1b7c5', icon: '🎀', note: 'Keepsake boxes for gift sets.', line: 'gift' },
 };
-export const INGREDIENT_ORDER = ['shea', 'oil', 'soapbase', 'sugar', 'fragrance', 'premium', 'jar', 'wrap'];
+export const INGREDIENT_ORDER = ['shea', 'oil', 'soapbase', 'sugar', 'fragrance', 'premium', 'jar', 'wrap', 'bottle', 'fizz', 'giftbox'];
+export const HOME_INGREDIENT_ORDER = INGREDIENT_ORDER.slice(0, 8);
 
 // Product families. `base` is the per-batch recipe before the formula tier adds its modifiers.
 export const PRODUCTS = {
   butter: { id: 'butter', name: 'Body Butter',   container: 'jar', batch: 6, time: 45, basePrice: 12, base: { shea: 4, oil: 2, jar: 6 },     icon: '🧴', blurb: 'Whipped, rich, deeply moisturizing.' },
   soap:   { id: 'soap',   name: 'Handmade Soap', container: 'bar', batch: 8, time: 60, basePrice: 7,  base: { soapbase: 5, wrap: 8 },        icon: '🧼', blurb: 'Cold-process bars, cut and wrapped by hand.' },
   scrub:  { id: 'scrub',  name: 'Body Scrub',    container: 'tub', batch: 6, time: 40, basePrice: 10, base: { sugar: 4, oil: 2, jar: 6 },    icon: '✨', blurb: 'Sugar-and-salt polish for glowing skin.' },
+  // Era II product lines (brief §5: hair care, gift sets, bath bombs)
+  hair:   { id: 'hair',   name: 'Hair Oil',      container: 'bottle', batch: 6, time: 40, basePrice: 14, base: { oil: 3, bottle: 6 },                    icon: '💧', blurb: 'Light, glossy oil for curls, coils and ends.', line: true },
+  bomb:   { id: 'bomb',   name: 'Bath Bomb',     container: 'bomb',   batch: 8, time: 35, basePrice: 6,  base: { fizz: 4, wrap: 8 },                     icon: '🫧', blurb: 'Fizzing, scented, impossible to resist.', line: true },
+  gift:   { id: 'gift',   name: 'Gift Set',      container: 'gift',   batch: 4, time: 50, basePrice: 34, base: { shea: 2, soapbase: 2, sugar: 2, giftbox: 4 }, icon: '🎁', blurb: 'Butter, soap and scrub in a ribboned keepsake box.', line: true },
 };
-export const PRODUCT_ORDER = ['butter', 'soap', 'scrub'];
+export const PRODUCT_ORDER = ['butter', 'soap', 'scrub', 'hair', 'bomb', 'gift'];
+// New product lines: R&D cost to unlock in the store era, and the recipe you start with.
+export const PRODUCT_LINES = {
+  hair: { id: 'hair', cost: 260, starter: 'coconut', desc: 'A hair-care line brings in Hair-Care Shoppers.' },
+  bomb: { id: 'bomb', cost: 200, starter: 'rose', desc: 'Bath bombs are cheap, cheerful and catch Trend Shoppers.' },
+  gift: { id: 'gift', cost: 320, starter: 'vanilla', desc: 'Gift sets are what Gift Shoppers come in for.' },
+};
+export const LINE_ORDER = ['hair', 'bomb', 'gift'];
 
 // Formula tiers: how generous the recipe is with botanicals. Quality drives reviews and Brand Soul.
 export const TIERS = [
@@ -56,10 +72,11 @@ export const STARTER_SKUS = [
   { productId: 'scrub',  scentId: 'citrus',   tier: 0 },
 ];
 
-export const START_INGREDIENTS = { shea: 8, oil: 8, soapbase: 10, sugar: 8, fragrance: 6, premium: 0, jar: 24, wrap: 16 };
+export const START_INGREDIENTS = { shea: 8, oil: 8, soapbase: 10, sugar: 8, fragrance: 6, premium: 0, jar: 24, wrap: 16, bottle: 0, fizz: 0, giftbox: 0 };
 
 export const VARIANT_COST = 60;
 export const MAX_SKUS_HOME = 9;
+export const MAX_SKUS_STORE = 15;
 
 export const BASE_INGREDIENT_CAP = 130;
 export const BASE_GOODS_CAP = 40;
@@ -76,11 +93,17 @@ export const UPGRADES = {
 export const UPGRADE_ORDER = ['mixer', 'pantry', 'goods', 'packing', 'station2', 'bigpot', 'helper'];
 
 export const CAMPAIGNS = {
-  social: { id: 'social', name: 'Post a Behind-the-Scenes Reel', cost: 0,   boost: 0.2,  duration: 70,  cooldown: 150, icon: '📱', desc: 'Free, quick, and personal. A short bump in orders.' },
-  flyers: { id: 'flyers', name: 'Farmers-Market Flyers',         cost: 45,  boost: 0.4,  duration: 240, cooldown: 240, icon: '📰', desc: 'Local word of mouth for a full day.' },
-  ads:    { id: 'ads',    name: 'Online Ad Campaign',            cost: 130, boost: 0.75, duration: 480, cooldown: 480, icon: '🎯', desc: 'Two days of targeted reach. Make sure you can keep up!' },
+  social: { id: 'social', name: 'Post a Behind-the-Scenes Reel', cost: 0,   boost: 0.2,  duration: 70,  cooldown: 150, icon: '📱', desc: 'Free, quick, and personal. A short bump in orders.', channel: 'online' },
+  flyers: { id: 'flyers', name: 'Farmers-Market Flyers',         cost: 45,  boost: 0.4,  duration: 240, cooldown: 240, icon: '📰', desc: 'Local word of mouth for a full day.', channel: 'online' },
+  ads:    { id: 'ads',    name: 'Online Ad Campaign',            cost: 130, boost: 0.75, duration: 480, cooldown: 480, icon: '🎯', desc: 'Two days of targeted reach. Make sure you can keep up!', channel: 'online' },
+  // Era II local marketing: these bring people through the door
+  window:   { id: 'window',   name: 'Refresh the Window Display',   cost: 0,   boost: 0.15, duration: 240, cooldown: 480, icon: '🪟', desc: 'Free. Passers-by stop and look for the rest of the day.', channel: 'store' },
+  paper:    { id: 'paper',    name: 'Ad in the Main Street Gazette', cost: 70,  boost: 0.35, duration: 240, cooldown: 360, icon: '🗞️', desc: 'A full day of extra shoppers from around town.', channel: 'store' },
+  workshop: { id: 'workshop', name: 'Bath-Bomb Workshop Night',     cost: 160, boost: 0.6,  duration: 150, cooldown: 720, icon: '🎉', desc: 'A busy, joyful evening in the shop. Brand Soul +2.', channel: 'store', soul: 2 },
 };
 export const CAMPAIGN_ORDER = ['social', 'flyers', 'ads'];
+export const STORE_CAMPAIGN_ORDER = ['window', 'paper', 'workshop'];
+export const LOYALTY = { cost: 180, desc: 'Stamp cards for regulars: more Loyal Regulars, and they wait longer.' };
 
 export const DAILY_UTILITIES = 8;
 
@@ -156,6 +179,8 @@ export const STORE_POINTS = {
   rest2:    { x: 2.2, z: -3.4, face: -0.4 },
   floor:    { x: -0.6, z: 0.5, face: 0.3 },        // where an idle associate waits
   backdoor: { x: 0, z: -2.25, face: 0 },
+  staffroom: { x: 4.9, z: -2.9, face: Math.PI / 2 },  // where off-shift staff hang their aprons
+  desk:     { x: 5.75, z: -3.3, face: Math.PI / 2 },     // training at the laptop
   inside:   { x: 0, z: 4.6, face: Math.PI },         // just inside the entrance
   outside:  { x: 0, z: 6.6, face: Math.PI },
   streetL:  { x: -6.9, z: 7.3, face: Math.PI / 2 },
@@ -187,8 +212,11 @@ export const FURNITURE = {
   shelf: { id: 'shelf', name: 'Wooden Wall Shelf', cost: 160, w: 4, d: 2, slots: 2, slotCap: 12, visibility: 1.0, appeal: 1, icon: '🗄️', desc: 'Three tiers, two products. The workhorse of the shop floor.' },
   table: { id: 'table', name: 'Round Display Table', cost: 120, w: 3, d: 3, slots: 1, slotCap: 10, visibility: 1.6, appeal: 3, icon: '🪵', desc: 'One product, beautifully presented. Shoppers notice it first and buy on impulse.' },
   plant: { id: 'plant', name: 'Potted Fig', cost: 35, w: 2, d: 2, slots: 0, slotCap: 0, visibility: 0, appeal: 2, icon: '🪴', desc: 'Greenery makes the shop feel calm and handmade.' },
+  tester: { id: 'tester', name: 'Tester Bar', cost: 220, w: 4, d: 2, slots: 0, slotCap: 0, visibility: 0, appeal: 2, access: true, icon: '🧪', desc: 'Shoppers try before they buy: happier, and more likely to pick something up.' },
+  bench: { id: 'bench', name: 'Cushioned Bench', cost: 90, w: 3, d: 2, slots: 0, slotCap: 0, visibility: 0, appeal: 2, icon: '🛋️', desc: 'Somewhere to rest. Everyone in the shop is a little more patient.' },
+  lamp: { id: 'lamp', name: 'Brass Floor Lamp', cost: 70, w: 1, d: 1, slots: 0, slotCap: 0, visibility: 0, appeal: 2, icon: '💡', desc: 'Warm light that makes the shop glow.' },
 };
-export const FURNITURE_ORDER = ['shelf', 'table', 'plant'];
+export const FURNITURE_ORDER = ['shelf', 'table', 'tester', 'plant', 'bench', 'lamp'];
 export const SELL_BACK = 0.5;
 
 // The layout the store opens with.
@@ -209,6 +237,13 @@ export const STORE = {
   rent: 55,                  // per day
   utilities: 14,             // per day
   goodsCap: 120,             // back-stock storage
+  refillLevels: [0.25, 0.5, 0.8], // display refill thresholds the player can choose
+  messChance: 0.05,          // per display a shopper browses
+  maxMesses: 12,
+  wearPerVisit: 0.45,        // cleanliness lost per shopper
+  trainCost: 90,
+  trainTime: 40,
+  statCap: 1.45,
   ingredientCap: 200,
   onlineShare: 0.55,         // online orders keep coming, at this share of the home-era rate
   restockBelow: 0.5,         // staff restock a display once it falls under half full
@@ -225,16 +260,29 @@ export const ARCHETYPES = {
   regular:  { id: 'regular',  name: 'Loyal Regular',              weight: 0.3,  budget: [20, 36], patience: [70, 100], wants: [1, 2], products: { butter: 1, soap: 1.2, scrub: 1 }, tier: 0, sens: 0.6, note: 'Comes back for the staples when they are in stock.' },
   value:    { id: 'value',    name: 'Value Shopper',              weight: 0.3,  budget: [10, 22], patience: [45, 70],  wants: [1, 2], products: { butter: 0.7, soap: 1.4, scrub: 1 }, tier: 0, sens: 1.6, note: 'Hunts for fair prices and affordable staples.' },
   natural:  { id: 'natural',  name: 'Natural-Ingredient Shopper', weight: 0.25, budget: [24, 46], patience: [55, 85],  wants: [1, 3], products: { butter: 1.1, soap: 1, scrub: 1 },   tier: 1, sens: 0.8, note: 'Wants botanical, quality formulas.' },
-  skincare: { id: 'skincare', name: 'Skincare Enthusiast',        weight: 0.15, budget: [30, 64], patience: [60, 90],  wants: [1, 3], products: { butter: 1.4, soap: 0.6, scrub: 1.2 }, tier: 2, sens: 0.5, note: 'Pays for premium formulas with great reviews.' },
+  skincare: { id: 'skincare', name: 'Skincare Enthusiast',        weight: 0.15, budget: [30, 64], patience: [60, 90],  wants: [1, 3], products: { butter: 1.4, soap: 0.6, scrub: 1.2, hair: 0.5, gift: 0.3 }, tier: 2, sens: 0.5, note: 'Pays for premium formulas with great reviews.' },
+  // Milestone 4: these three only come in once the shop sells what they are after
+  gift:     { id: 'gift',     name: 'Gift Shopper',               weight: 0.14, budget: [30, 75], patience: [55, 85],  wants: [1, 2], products: { gift: 3, butter: 0.7, bomb: 0.7, soap: 0.4 }, tier: 1, sens: 0.5, requires: 'gift', tables: true, note: 'Looks for beautifully presented gifts and sets.' },
+  haircare: { id: 'haircare', name: 'Hair-Care Shopper',          weight: 0.14, budget: [16, 40], patience: [50, 80],  wants: [1, 2], products: { hair: 3, butter: 0.6, soap: 0.3 }, tier: 1, sens: 0.8, requires: 'hair', note: 'Here for the hair-care line.' },
+  trend:    { id: 'trend',    name: 'Trend Shopper',              weight: 0.1,  budget: [12, 32], patience: [35, 60],  wants: [1, 2], products: { bomb: 3, scrub: 1, soap: 0.6 }, tier: 0, sens: 0.9, requires: 'bomb', trend: true, note: 'Follows what is popular and what is being talked about.' },
 };
-export const ARCHETYPE_ORDER = ['regular', 'value', 'natural', 'skincare'];
+export const ARCHETYPE_ORDER = ['regular', 'value', 'natural', 'skincare', 'gift', 'haircare', 'trend'];
 
 // Basic staff (Milestone 3). Schedules and training arrive with Milestone 4.
 export const STAFF_ROLES = {
   cashier:   { id: 'cashier',   name: 'Cashier',         wage: 42, icon: '🧾', desc: 'Works the till so shoppers never wait for you to come out of the back room.' },
-  associate: { id: 'associate', name: 'Sales Associate', wage: 38, icon: '🛍️', desc: 'Restocks the displays from back stock and helps shoppers find what they want.' },
+  associate: { id: 'associate', name: 'Sales Associate', wage: 38, icon: '🛍️', desc: 'Helps shoppers find what they want, restocks and tidies up.' },
+  stocker:   { id: 'stocker',   name: 'Stocker',         wage: 34, icon: '📦', desc: 'Keeps every display full and the floor clean. Never stops moving.' },
+  maker:     { id: 'maker',     name: 'Production Worker', wage: 44, icon: '🍯', desc: 'Runs the stove and packs online orders, so you are free for the shop.' },
 };
-export const STAFF_ROLE_ORDER = ['cashier', 'associate'];
+export const STAFF_ROLE_ORDER = ['cashier', 'associate', 'stocker', 'maker'];
+// Shifts: early is opening to 2 PM, late is 2 PM to close. Half shifts cost a bit over half.
+export const SHIFTS = {
+  full:  { id: 'full',  name: 'All day',  from: 0, to: 1, pay: 1 },
+  early: { id: 'early', name: 'Opening',  from: 0, to: 0.5, pay: 0.55 },
+  late:  { id: 'late',  name: 'Closing',  from: 0.5, to: 1, pay: 0.55 },
+};
+export const SHIFT_ORDER = ['full', 'early', 'late'];
 
 export const STAFF_NAMES = ['Aaliyah', 'Bree', 'Camille', 'Dante', 'Esme', 'Felix', 'Gia', 'Hector', 'Ines', 'Jamal', 'Kenji', 'Lena', 'Marisol', 'Nico', 'Omar', 'Paloma', 'Rhea', 'Simone', 'Tobi', 'Valentina', 'Wes', 'Yara', 'Zuri'];
 

@@ -416,3 +416,13 @@ button:focus-visible, .toggle:focus-visible { outline: 3px solid rgba(79, 169, 1
 .panel kbd { font-size: 11px; padding: 1px 5px; }
 .goal .stars-sm { color: var(--gold); font-weight: 800; }
 .pick button .swatch.sm { width: 20px; height: 20px; vertical-align: middle; }
+
+/* ---- Milestone 4: store profitability chart --------------------------------------- */
+.pl-chart { display: flex; gap: 6px; align-items: flex-end; justify-content: space-between; padding-top: 4px; }
+.pl-col { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; font-size: 10.5px; color: var(--muted, #8a7564); font-weight: 700; }
+.pl-col b { font-size: 10.5px; }
+.pl-bars { display: flex; gap: 2px; align-items: flex-end; height: 72px; }
+.pl-bars i, .key { display: inline-block; width: 9px; border-radius: 3px 3px 0 0; }
+.pl-bars i.in, .key.in { background: #6dbf8b; }
+.pl-bars i.out, .key.out { background: #e98fa5; }
+.key { height: 9px; border-radius: 2px; vertical-align: -1px; margin: 0 2px 0 6px; }

@@ -27,6 +27,7 @@ export function makeStaff(game, role, overrides = {}) {
     role, speed, service, wage,
     look: randomLook(game),
     hiredDay: game.state.time.day,
+    shift: 'full', xp: 0, trained: 0, training: null,
     ...overrides,
   };
 }

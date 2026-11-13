@@ -1,9 +1,9 @@
 // Era II panels: build mode, the shop floor overview, a display inspector and staff.
 // Same contract as panels.js: pure functions of state returning HTML strings.
 
-import { FURNITURE, FURNITURE_ORDER, STAFF_ROLES, STAFF_ROLE_ORDER, STORE, ARCHETYPES, SELL_BACK } from '../data.js';
-import { trafficBreakdown, storeAppeal, unitsOnDisplay, isDisplay } from '../sim/store.js';
-import { wagesPerDay } from '../sim/staff.js';
+import { FURNITURE, FURNITURE_ORDER, STAFF_ROLES, STAFF_ROLE_ORDER, STORE, ARCHETYPES, SELL_BACK, SHIFTS, SHIFT_ORDER } from '../data.js';
+import { trafficBreakdown, unitsOnDisplay, isDisplay, designScore, cleanliness } from '../sim/store.js';
+import { wagesPerDay, wageToday, onShift } from '../sim/staff.js';
 import { money, esc, starStr, skuSwatch } from './panels.js';
 import { ICONS } from './icons.js';
 
@@ -46,7 +46,8 @@ export function buildPanel(s, ui) {
   } else {
     out += `<div class="muted" style="padding:0 4px">Pick an item to place, or click anything on the shop floor to move, rotate or sell it. Aisles, the till line and the doorways stay clear (shaded pink).</div>`;
   }
-  out += `<div class="sect">Catalogue <span>store appeal ${storeAppeal(s)}</span></div>`;
+  out += designCard(s);
+  out += `<div class="sect">Catalogue</div>`;
   for (const id of FURNITURE_ORDER) {
     const F = FURNITURE[id];
     const chips = F.slots ? `<span class="chip">${F.slots} product${F.slots > 1 ? 's' : ''} · ${F.slotCap} each</span>${F.visibility > 1 ? '<span class="chip pink">Eye-catching</span>' : ''}` : `<span class="chip ok">+${F.appeal} appeal</span>`;
@@ -54,6 +55,20 @@ export function buildPanel(s, ui) {
       <div class="row"><div class="chips grow">${chips}</div><button class="btn sm" data-act="b-place" data-id="${id}" ${s.cash < F.cost ? 'disabled' : ''}>${money(F.cost)}</button></div></div>`;
   }
   return out;
+}
+
+function designCard(s) {
+  const d = designScore(s);
+  return `<div class="sect">Store design <span>${d.total} / 100</span></div><div class="card">
+    <div class="bar ${d.total >= 70 ? 'green' : d.total >= 45 ? 'gold' : 'red'}"><i style="width:${d.total}%"></i></div>
+    ${d.parts.map((p) => `<div class="kv" title="${esc(p.tip)}"><span class="tiny">${p.label}</span><b style="font-size:12.5px">${p.value} / ${p.max}</b></div>`).join('')}
+    <div class="tiny">A better-designed shop draws more people in and puts them in a good mood.</div></div>`;
+}
+
+function cleanCard(s) {
+  const st = s.store, c = cleanliness(s);
+  return `<div class="kv"><span>Cleanliness</span><div class="bar ${c >= 70 ? 'green' : c >= 45 ? 'gold' : 'red'}" style="width:110px;align-self:center"><i style="width:${c}%"></i></div></div>
+    ${st.messes.length ? `<div class="tiny">${st.messes.length} spill${st.messes.length > 1 ? 's' : ''} on the floor. Associates and stockers tidy between jobs.</div>` : ''}`;
 }
 
 // ---- Shop floor overview ---------------------------------------------------------------------
@@ -68,6 +83,8 @@ export function storePanel(s) {
     <div class="kv"><span>Bought something</span><b>${t.buyers}${t.visitors ? ` (${pct(t.buyers, t.buyers + t.walkouts)}%)` : ''}</b></div>
     <div class="kv"><span>Left empty-handed</span><b class="${t.walkouts ? 'neg' : ''}">${t.walkouts}</b></div>
     <div class="kv"><span>Store sales today</span><b class="pos">${money(t.revenue, true)}</b></div>
+    ${cleanCard(s)}
+    <div class="kv"><span>Store design</span><b>${designScore(s).total} / 100</b></div>
     <div class="kv"><span>Till</span><b>${st.till ? (st.till === 'founder' ? `${esc(s.founder.name)} is serving` : 'Staffed') : st.staff.some((x) => x.role === 'cashier') ? 'Cashier on the way' : `${esc(s.founder.name)} comes out when someone is waiting`}</b></div></div>`;
   const reasons = Object.entries(t.reasons || {});
   if (reasons.length || t.stockouts) {
@@ -76,7 +93,7 @@ export function storePanel(s) {
       ${t.stockouts ? `<div class="tiny">${t.stockouts} times a shopper found an empty spot on a display. Keep the back room cooking and the shelves stocked.</div>` : ''}</div>`;
   }
   out += `<div class="sect">Foot traffic <span>×${tr.total.toFixed(2)} now</span></div><div class="card">
-    ${statBar('⭐ Ratings & reviews', tr.rep)}${statBar('💗 Brand Soul', tr.soul)}${statBar('🪴 Store appeal', tr.appeal)}${statBar('📈 Word of mouth', tr.growth)}${statBar('📣 Campaigns', tr.marketing)}
+    ${statBar('⭐ Ratings & reviews', tr.rep)}${statBar('💗 Brand Soul', tr.soul)}${statBar('🪴 Store design', tr.appeal)}${statBar('📈 Word of mouth', tr.growth)}${statBar('📣 Campaigns', tr.marketing)}
     <div class="tiny">Busiest around lunch and after work. ${st.today.missed ? `${st.today.missed} people turned away at the door: the shop was full.` : ''}</div></div>`;
   const displays = st.furniture.filter(isDisplay);
   out += `<div class="sect">Displays <span>${unitsOnDisplay(s)} units out</span></div>`;
@@ -102,11 +119,13 @@ export function displayPanel(s, ui) {
   const fu = s.store.furniture.find((f) => f.id === ui.inspectId);
   if (!fu) return `<div class="empty">That display is gone.</div>`;
   const F = FURNITURE[fu.type];
-  let out = `<div class="muted" style="padding:0 4px">${F.desc} Staff refill each slot from back stock when it drops below half.</div>`;
+  let out = `<div class="muted" style="padding:0 4px">${F.desc} Staff refill each slot from back stock when it drops below the level you set.</div>`;
   fu.slots.forEach((slot, k) => {
     out += `<div class="sect">${fu.slots.length > 1 ? (k === 0 ? 'Left side' : 'Right side') : 'Featured product'}</div><div class="card">${slotRow(s, fu, k)}
       <div class="tiny">Show on this ${fu.type}:</div><div class="pick">${s.skus.map((sku) => `<button class="${slot.skuId === sku.id ? 'on' : ''}" data-act="slot" data-id="${fu.id}" data-k="${k}" data-sku="${sku.id}">${skuSwatch(sku, 'sm')} ${esc(sku.name)} <span class="tiny">${s.goods[sku.id]}</span></button>`).join('')}
-      <button class="${slot.skuId ? '' : 'on'}" data-act="slot" data-id="${fu.id}" data-k="${k}" data-sku="">Nothing</button></div></div>`;
+      <button class="${slot.skuId ? '' : 'on'}" data-act="slot" data-id="${fu.id}" data-k="${k}" data-sku="">Nothing</button></div>
+      ${slot.skuId ? `<div class="tiny">Refill when it drops below:</div><div class="pick">${STORE.refillLevels.map((lv) => `<button class="${(slot.refill ?? 0.5) === lv ? 'on' : ''}" data-act="refill" data-id="${fu.id}" data-k="${k}" data-lv="${lv}">${lv === 0.25 ? 'A quarter' : lv === 0.5 ? 'Half' : 'Nearly full'}</button>`).join('')}</div>
+      <div class="row"><span class="tiny grow">${slot.rush ? 'Restock requested: the next free pair of hands brings it out.' : 'Higher refill levels look fuller but keep staff busier.'}</span><button class="btn sm ${slot.rush ? 'ghost' : 'teal'}" data-act="rush" data-id="${fu.id}" data-k="${k}" ${slot.rush ? 'disabled' : ''}>Restock now</button></div>` : ''}</div>`;
   });
   out += `<div class="row" style="padding:0 4px"><button class="btn sm ghost" data-act="b-edit" data-id="${fu.id}">Move or sell in Build mode</button></div>`;
   return out;
@@ -119,15 +138,19 @@ const stat = (label, v) => `<span class="chip ${v >= 1.1 ? 'ok' : v < 0.95 ? 'go
 export function storeStaffPanel(s) {
   const st = s.store;
   let out = `<div class="card"><div class="kv"><span>Team</span><b>${st.staff.length} / ${STORE.maxStaff}</b></div><div class="kv"><span>Wages</span><b class="neg">${money(wagesPerDay(s))} / day</b></div>
-    <div class="tiny">Wages are paid at closing time with rent (${money(STORE.rent)}) and utilities.${st.staff.some((x) => x.role === 'cashier') ? '' : ` With no cashier, ${esc(s.founder.name)} leaves the workroom to ring up every sale.`}</div></div>`;
+    <div class="tiny">Wages are paid at closing time with rent (${money(STORE.rent)}) and utilities. Opening and closing shifts cost a little over half a day. When nobody is on the till, ${esc(s.founder.name)} leaves the workroom to ring up sales.</div></div>`;
   out += `<div class="sect">Your team</div>`;
   if (!st.staff.length) out += `<div class="empty">Just you for now.</div>`;
   for (const rec of st.staff) {
     const R = STAFF_ROLES[rec.role];
     const actor = s.actors.find((a) => a.id === rec.id);
-    out += `<div class="card"><div class="row"><span class="swatch" style="background:#d6ecea">${R.icon}</span><div class="grow"><div class="title">${esc(rec.name)}</div><div class="muted">${R.name} · ${actor && actor.task ? esc(actor.task.label) : 'Ready'}</div></div><b class="neg" style="font-size:13px">${money(rec.wage)}/day</b></div>
-      <div class="chips">${stat('Speed', rec.speed)}${stat('Service', rec.service)}</div>
-      <div class="row wrap">${STAFF_ROLE_ORDER.map((r) => `<button class="btn sm ${rec.role === r ? 'teal' : 'ghost'}" data-act="s-role" data-id="${rec.id}" data-role="${r}" ${rec.role === r ? 'disabled' : ''}>${STAFF_ROLES[r].name}</button>`).join('')}<span class="grow"></span><button class="btn sm ghost" data-act="s-fire" data-id="${rec.id}">Let go</button></div></div>`;
+    const status = rec.training ? `Training ${rec.training}` : !onShift(s, rec) ? `Off until ${SHIFTS[rec.shift].from ? '2 PM' : 'tomorrow'}` : actor && actor.task ? actor.task.label : 'Ready';
+    const canTrain = !rec.training && onShift(s, rec) && s.cash >= STORE.trainCost;
+    out += `<div class="card"><div class="row"><span class="swatch" style="background:#d6ecea">${R.icon}</span><div class="grow"><div class="title">${esc(rec.name)}</div><div class="muted">${R.name} · ${esc(status)}</div></div><b class="neg" style="font-size:13px">${money(wageToday(rec))}/day</b></div>
+      <div class="chips">${stat('Speed', rec.speed)}${stat('Service', rec.service)}<span class="chip" title="Every three days worked, a little better at everything">${rec.xp || 0} day${rec.xp === 1 ? '' : 's'} experience</span></div>
+      <div class="tiny">Role</div><div class="pick">${STAFF_ROLE_ORDER.map((r) => `<button class="${rec.role === r ? 'on' : ''}" data-act="s-role" data-id="${rec.id}" data-role="${r}">${STAFF_ROLES[r].icon} ${STAFF_ROLES[r].name}</button>`).join('')}</div>
+      <div class="tiny">Shift</div><div class="pick">${SHIFT_ORDER.map((sh) => `<button class="${(rec.shift || 'full') === sh ? 'on' : ''}" data-act="s-shift" data-id="${rec.id}" data-shift="${sh}">${SHIFTS[sh].name}</button>`).join('')}</div>
+      <div class="row wrap"><button class="btn sm ghost" data-act="s-train" data-id="${rec.id}" data-skill="speed" ${canTrain && rec.speed < STORE.statCap ? '' : 'disabled'}>Train speed · ${money(STORE.trainCost)}</button><button class="btn sm ghost" data-act="s-train" data-id="${rec.id}" data-skill="service" ${canTrain && rec.service < STORE.statCap ? '' : 'disabled'}>Train service · ${money(STORE.trainCost)}</button><span class="grow"></span><button class="btn sm ghost" data-act="s-fire" data-id="${rec.id}">Let go</button></div></div>`;
   }
   out += `<div class="sect">Looking for work <span>new faces each morning</span></div>`;
   for (const c of st.candidates) {
@@ -137,6 +160,6 @@ export function storeStaffPanel(s) {
   }
   out += `<div class="tiny" style="padding:0 4px">Hiring costs ${money(STORE.hireFee)} up front.</div><div class="sect">Roles</div>`;
   for (const r of STAFF_ROLE_ORDER) out += `<div class="card"><div class="row"><span class="swatch" style="background:#eef5f1">${STAFF_ROLES[r].icon}</span><div class="grow"><div class="title">${STAFF_ROLES[r].name}</div><div class="muted">${STAFF_ROLES[r].desc}</div></div></div></div>`;
-  out += `<div class="tiny" style="padding:0 4px">Schedules and training are coming with the next part of the store.</div>`;
+  out += `<div class="tiny" style="padding:0 4px">Training takes them off the floor for a little while at the office laptop, and the improvement is permanent.</div>`;
   return out;
 }
