@@ -52,6 +52,10 @@ business still feel handmade, generous and reliable?).
 
 Click the stove, pantry, shelves, packing table or laptop in the room to open the matching panel.
 
+The menu has a **Detailed graphics** switch (soft contact shadows and sharper rendering). The game
+turns it off by itself if the frame rate stays low. Music is off by default and can be turned on
+in the same menu.
+
 ## Project layout
 
 ```
@@ -73,6 +77,7 @@ js/world/             three.js presentation (reads state, never changes it)
   character.js        procedural characters and animation library
   home.js             the home workshop scene
 js/ui/                HUD, panels, orders rail, tutorial, modals, diagnostics
+  icons.js            hand-drawn SVG icon set and product silhouettes
 js/audio.js           synthesised sound effects and music (no audio files)
 tests/sim.test.mjs    economy, inventory, production, save and soak tests
 ```

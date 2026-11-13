@@ -1,7 +1,7 @@
 // Tiny synthesised sound set (no audio files). Created lazily on the first user gesture.
 
 let ctx = null, master = null, musicGain = null, musicTimer = null;
-export const audioSettings = { sfx: true, music: true };
+export const audioSettings = { sfx: true, music: false }; // music is opt-in from the menu
 
 function ensure() {
   if (ctx) return ctx;

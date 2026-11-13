@@ -7,6 +7,7 @@ import { batchNeeds, batchUnits, batchTime, unitCost, refPrice, skuQuality, skuR
 import { MAX_QUEUE } from '../sim/production.js';
 import { demandBreakdown, canFulfill } from '../sim/orders.js';
 import { todayProfit } from '../sim/economy.js';
+import { ICONS, productIcon } from './icons.js';
 
 export const money = (v, dec = false) => {
   const n = Math.abs(v);
@@ -18,7 +19,7 @@ export const starStr = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
 
 export function skuSwatch(sku, cls = '') {
   const sc = SCENTS[sku.scentId];
-  return `<span class="swatch ${cls}" style="background:${sc.color}">${PRODUCTS[sku.productId].icon}</span>`;
+  return `<span class="swatch ${cls}" style="background:${sc.color}">${productIcon(PRODUCTS[sku.productId].container)}</span>`;
 }
 const tierChip = (tier) => `<span class="chip ${tier === 2 ? 'gold' : tier === 1 ? 'teal' : ''}">${TIERS[tier].name}</span>`;
 
@@ -32,7 +33,7 @@ export function productionPanel(s) {
     const sku = st.job && s.skus.find((k) => k.id === st.job.skuId);
     const name = st.id === 0 ? 'Stovetop' : 'Hot plate & curing rack';
     if (!st.job) {
-      out += `<div class="card"><div class="row"><span class="swatch" style="background:#efe5d6">🍳</span><div class="grow"><div class="title">${name}</div><div class="muted">Idle. Queue a batch below.</div></div></div></div>`;
+      out += `<div class="card"><div class="row"><span class="swatch ink" style="background:#efe5d6">${ICONS.production}</span><div class="grow"><div class="title">${name}</div><div class="muted">Idle. Queue a batch below.</div></div></div></div>`;
     } else {
       const label = st.phase === 'prep' ? 'Getting ingredients ready…' : st.phase === 'running' ? 'Cooking' : st.blocked ? 'Done, but the stock shelf is full!' : 'Done! Waiting to be shelved.';
       out += `<div class="card"><div class="row">${skuSwatch(sku)}<div class="grow"><div class="title">${esc(sku.name)}</div><div class="muted">${name} · ${st.job.units} units · ${label}</div></div>
@@ -130,7 +131,7 @@ export function recipesPanel(s, ui) {
   const full = s.skus.length >= MAX_SKUS_HOME;
   const tier = TIERS[v.tier];
   out += `<div class="sect">Develop a new recipe <span>${money(VARIANT_COST)} R&amp;D</span></div><div class="card">
-    <div class="tiny">Product</div><div class="pick">${PRODUCT_ORDER.map((id) => `<button class="${v.productId === id ? 'on' : ''}" data-act="vprod" data-id="${id}">${PRODUCTS[id].icon} ${PRODUCTS[id].name}</button>`).join('')}</div>
+    <div class="tiny">Product</div><div class="pick">${PRODUCT_ORDER.map((id) => `<button class="${v.productId === id ? 'on' : ''}" data-act="vprod" data-id="${id}">${productIcon(PRODUCTS[id].container)} ${PRODUCTS[id].name}</button>`).join('')}</div>
     <div class="tiny">Scent</div><div class="pick">${SCENT_ORDER.map((id) => `<button class="${v.scentId === id ? 'on' : ''}" data-act="vscent" data-id="${id}"><span class="dotc" style="background:${SCENTS[id].color}"></span>${SCENTS[id].name}</button>`).join('')}</div>
     <div class="tiny">Formula</div><div class="pick">${TIERS.map((t) => `<button class="${v.tier === t.id ? 'on' : ''}" data-act="vtier" data-id="${t.id}">${t.name}</button>`).join('')}</div>
     <div class="muted">${tier.desc} Quality ${tier.quality}/100. Suggested price ${money(Math.round(PRODUCTS[v.productId].basePrice * tier.priceMult))}.</div>
@@ -209,7 +210,7 @@ export function reportsPanel(s) {
 }
 
 export function staffPanel() {
-  return `<div class="empty" style="padding:30px 16px"><div style="font-size:40px">🔒</div><div class="title" style="margin:8px 0 4px">Staff opens with your first store</div>Sales associates, cashiers and stockers join the team once you have a shop floor for them. For now, the Weekend Helper in Upgrades can lend a hand.</div>`;
+  return `<div class="empty" style="padding:30px 16px"><div class="lockico">${ICONS.lock}</div><div class="title" style="margin:8px 0 4px">Staff opens with your first store</div>Sales associates, cashiers and stockers join the team once you have a shop floor for them. For now, the Weekend Helper in Upgrades can lend a hand.</div>`;
 }
 
 // ---- Orders rail ----------------------------------------------------------------

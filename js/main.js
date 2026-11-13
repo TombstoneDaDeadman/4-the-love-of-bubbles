@@ -20,7 +20,8 @@ const app = {
   engine: null, world: null, game: null, ui: null, fps: 60,
   mode: 'title', // title | creator | play
   save(quiet) { if (app.mode === 'play' && app.game) saveGame(storage, app.game.state); },
-  savePrefs() { try { storage.setItem(PREFS_KEY, JSON.stringify({ music: audioSettings.music, sfx: audioSettings.sfx })); } catch (e) { /* ignore */ } },
+  savePrefs() { try { storage.setItem(PREFS_KEY, JSON.stringify({ music: audioSettings.music, sfx: audioSettings.sfx, gfx: app.engine.quality })); } catch (e) { /* ignore */ } },
+  setQuality(q, save) { app.engine.setQuality(q); app.autoQuality = false; if (save) app.savePrefs(); },
   quitToTitle() { showTitle(); },
   // Diagnostics: fast-forward the simulation by a number of sim-seconds (ignores game speed).
   advance(seconds) { const t = app.game.state.time, sp = t.speed, p = t.paused; t.speed = 1; t.paused = false; for (let i = 0; i < seconds * 5; i++) tick(app.game, 0.2); t.speed = sp; t.paused = p; },
@@ -30,12 +31,20 @@ window.__ftlob = app; // handy for diagnostics in the console
 function loadPrefs() {
   try {
     const p = JSON.parse(storage.getItem(PREFS_KEY) || '{}');
-    if (p.music === false) setMusic(false);
+    audioSettings.music = p.music === true;
     if (p.sfx === false) setSfx(false);
+    if (p.gfx === 'low' || p.gfx === 'high') { app.engine.setQuality(p.gfx); app.autoQuality = false; }
   } catch (e) { /* ignore */ }
 }
 
+function fadeIn() {
+  const f = document.getElementById('fade');
+  if (!f) return;
+  f.classList.remove('run'); void f.offsetWidth; f.classList.add('run');
+}
+
 function setWorld(state) {
+  fadeIn();
   if (app.ui) { app.ui.destroy(); app.ui = null; }
   if (app.world) app.world.dispose();
   uiRoot.innerHTML = '';
@@ -161,11 +170,18 @@ function boot() {
   loadPrefs();
   showTitle();
 
-  let last = performance.now(), autosave = 0, spin = 0;
+  let last = performance.now(), autosave = 0, spin = 0, slow = 0;
+  app.autoQuality = app.autoQuality !== false;
   const frame = (now) => {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     app.fps += (1 / Math.max(dt, 0.001) - app.fps) * 0.05;
+    // If the detailed renderer cannot hold a playable frame rate, quietly drop to the simple one.
+    // Frames slower than 10 fps are ignored: that is a background tab, not a slow computer.
+    if (app.autoQuality && app.engine.quality === 'high' && dt < 0.1) {
+      slow = dt > 1 / 26 ? slow + dt : Math.max(0, slow - dt * 2);
+      if (slow > 4) { app.setQuality('low', true); if (app.ui) app.ui.toast('\u2699\uFE0F', 'Switched to simpler graphics', 'For a smoother frame rate. Change it in the menu.'); }
+    }
     if (app.mode === 'play') {
       tick(app.game, dt);
       autosave += dt;

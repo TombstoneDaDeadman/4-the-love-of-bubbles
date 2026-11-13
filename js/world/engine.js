@@ -2,37 +2,51 @@
 // with 360° rotation, smooth zoom and bounded panning.
 
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export class Engine {
   constructor(canvas) {
     this.canvas = canvas;
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 1.0;
     this.renderer = renderer;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(34, 1, 0.5, 80);
+    this.scene.background = new THREE.Color('#f7e7da');
+    this.scene.fog = new THREE.Fog('#f7e7da', 30, 70);
+    this.camera = new THREE.PerspectiveCamera(34, 1, 0.5, 90);
+    // Soft studio reflections so glass, metal and glazed surfaces read as materials.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+    // Transparent effects (steam, bubbles, sparkles) live here so ambient occlusion can skip them.
+    this.fxRoot = new THREE.Group();
+    this.scene.add(this.fxRoot);
 
-    this.hemi = new THREE.HemisphereLight('#fff6e8', '#d9c2a8', 0.95);
+    this.hemi = new THREE.HemisphereLight('#fff3e2', '#dcb999', 0.55);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#fff1dc', 2.1);
     this.sun.position.set(-5, 9, 6);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     const sc = this.sun.shadow.camera;
-    sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sc.near = 1; sc.far = 30;
+    sc.left = -7; sc.right = 7; sc.top = 7; sc.bottom = -7; sc.near = 1; sc.far = 30;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.03;
     this.sun.shadow.radius = 5;
     this.scene.add(this.sun, this.sun.target);
-    this.fill = new THREE.DirectionalLight('#ffd7c2', 0.45);
+    this.fill = new THREE.DirectionalLight('#ffd7c2', 0.3);
     this.fill.position.set(6, 5, -4);
     this.scene.add(this.fill);
 
@@ -45,14 +59,46 @@ export class Engine {
     this.onHover = null; this.onClick = null;
     this.enabled = true;
     this.keys = new Set();
+    this.quality = 'high';
+    this._buildComposer();
     this._bindInput();
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
 
+  // Post-processing: ground-truth ambient occlusion for contact shadows, then tone mapping.
+  _buildComposer() {
+    try {
+      const target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+      const composer = new EffectComposer(this.renderer, target);
+      composer.addPass(new RenderPass(this.scene, this.camera));
+      const ao = new GTAOPass(this.scene, this.camera, 4, 4);
+      ao.updateGtaoMaterial({ radius: 0.55, distanceExponent: 1.3, thickness: 1.2, scale: 1.25, samples: 12 });
+      ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 12 });
+      ao.blendIntensity = 1.0;
+      const aoRender = ao.render.bind(ao);
+      ao.render = (...args) => { this.fxRoot.visible = false; try { aoRender(...args); } finally { this.fxRoot.visible = true; } };
+      composer.addPass(ao);
+      composer.addPass(new OutputPass());
+      this.composer = composer; this.ao = ao;
+    } catch (e) {
+      this.composer = null; this.quality = 'low';
+    }
+  }
+
+  setQuality(q) {
+    this.quality = this.composer ? q : 'low';
+    this.resize();
+  }
+
+  setSky(color) { this.scene.background.copy(color); this.scene.fog.color.copy(color); }
+
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth, h = this.canvas.clientHeight || window.innerHeight;
+    const pr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 2 : 1.25);
+    this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
+    if (this.composer) { this.composer.setPixelRatio(pr); this.composer.setSize(w, h); }
     this.camera.aspect = w / h;
     // keep the room framed on narrow screens
     this.camera.fov = w / h < 1 ? 50 : 34;
@@ -167,5 +213,8 @@ export class Engine {
     if (Math.abs(this.shift) > 0.5) this.camera.setViewOffset(w, h, -this.shift, 0, w, h); else if (this.camera.view && this.camera.view.enabled) this.camera.clearViewOffset();
   }
 
-  render() { this.renderer.render(this.scene, this.camera); }
+  render() {
+    if (this.quality === 'high' && this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
+  }
 }

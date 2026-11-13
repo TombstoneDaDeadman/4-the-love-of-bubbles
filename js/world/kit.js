@@ -8,7 +8,7 @@ const matCache = new Map();
 export function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
   if (!matCache.has(key)) {
-    matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, ...opts }));
+    matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, envMapIntensity: 0.5, ...opts }));
   }
   return matCache.get(key);
 }
@@ -142,6 +142,117 @@ export function screenTexture() {
   });
 }
 
+// Printed product label: cream stock, a coloured band and the brand's "4" mark, repeated
+// around the jar. One material per accent colour.
+const labelCache = new Map();
+export function labelMaterial(accent) {
+  if (!labelCache.has(accent)) {
+    const tex = canvasTex(256, 64, (g, w, h) => {
+      g.fillStyle = '#fdf8ef'; g.fillRect(0, 0, w, h);
+      g.fillStyle = accent; g.fillRect(0, 0, w, 9); g.fillRect(0, h - 9, w, 9);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      for (let i = 0; i < 2; i++) {
+        const cx = 64 + i * 128;
+        g.fillStyle = accent; g.beginPath(); g.arc(cx, 32, 17, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fffaf2'; g.font = 'italic 700 26px Georgia, serif'; g.fillText('4', cx - 1, 33);
+        g.fillStyle = '#b9a58f'; g.fillRect(cx + 26, 25, 30, 3); g.fillRect(cx + 26, 33, 22, 3); g.fillRect(cx - 56, 25, 30, 3); g.fillRect(cx - 48, 33, 22, 3);
+      }
+    });
+    labelCache.set(accent, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, envMapIntensity: 0.4 }));
+  }
+  return labelCache.get(accent);
+}
+
+// Soft painted plaster with a faint botanical sprig pattern.
+export function wallTexture(base = '#f6ead9', dot = 'rgba(214,190,160,0.35)') {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    const rnd = prng(21);
+    g.globalAlpha = 0.05;
+    for (let i = 0; i < 900; i++) { g.fillStyle = rnd() > 0.5 ? '#ffffff' : '#b39a7c'; g.fillRect(rnd() * w, rnd() * h, 2 + rnd() * 3, 1 + rnd() * 2); }
+    g.globalAlpha = 1;
+    g.fillStyle = dot;
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+      const px = x * 64 + (y % 2 ? 32 : 0) + 16, py = y * 64 + 16;
+      g.beginPath(); g.arc(px, py, 3.2, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(px + 7, py - 5, 5, 2.2, -0.6, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(px - 7, py - 5, 5, 2.2, 0.6, 0, Math.PI * 2); g.fill();
+    }
+  }, [5, 2]);
+}
+
+// What you see out of the window: sky, soft hills, a couple of trees.
+export function outsideTexture() {
+  return canvasTex(512, 320, (g, w, h) => {
+    const sky = g.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, '#a9dcf5'); sky.addColorStop(0.6, '#e3f4fb'); sky.addColorStop(1, '#fdf6e4');
+    g.fillStyle = sky; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,0.9)';
+    [[90, 70, 34], [130, 62, 44], [175, 74, 30], [360, 100, 30], [400, 92, 40], [440, 104, 26]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); });
+    g.fillStyle = '#b9dcae'; g.beginPath(); g.ellipse(140, 330, 300, 130, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#9fcf98'; g.beginPath(); g.ellipse(430, 340, 260, 120, 0, 0, Math.PI * 2); g.fill();
+    for (const [x, y, r] of [[70, 215, 46], [455, 205, 54], [300, 240, 30]]) {
+      g.fillStyle = '#8a6a4a'; g.fillRect(x - 5, y, 10, 70);
+      g.fillStyle = '#6fb27a'; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#86c48d'; g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.6, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+
+// Ground: warm centre fading out to nothing so the diorama has no hard horizon.
+export function groundTexture() {
+  return canvasTex(512, 512, (g, w, h) => {
+    const r = g.createRadialGradient(w / 2, h / 2, 40, w / 2, h / 2, w / 2);
+    r.addColorStop(0, 'rgba(226,206,180,1)'); r.addColorStop(0.5, 'rgba(238,221,200,1)'); r.addColorStop(1, 'rgba(247,231,218,0)');
+    g.fillStyle = r; g.fillRect(0, 0, w, h);
+  });
+}
+
+// ---- Sprite textures (soft, cheap particles) ----------------------------------
+const spriteTex = (draw) => canvasTex(128, 128, draw);
+let spriteSet = null;
+export function sprites() {
+  if (spriteSet) return spriteSet;
+  spriteSet = {
+    soft: spriteTex((g) => {
+      const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.4, 'rgba(255,255,255,0.55)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+    }),
+    bubble: spriteTex((g) => {
+      const r = g.createRadialGradient(64, 64, 30, 64, 64, 60);
+      r.addColorStop(0, 'rgba(255,255,255,0.03)'); r.addColorStop(0.78, 'rgba(255,240,246,0.22)'); r.addColorStop(0.93, 'rgba(255,255,255,0.85)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.beginPath(); g.arc(64, 64, 62, 0, Math.PI * 2); g.fill();
+      g.lineWidth = 3;
+      g.strokeStyle = 'rgba(160,225,220,0.55)'; g.beginPath(); g.arc(64, 64, 55, 0.3, 1.9); g.stroke();
+      g.strokeStyle = 'rgba(245,160,185,0.55)'; g.beginPath(); g.arc(64, 64, 55, 3.4, 5.0); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 7; g.lineCap = 'round'; g.beginPath(); g.arc(64, 64, 42, Math.PI * 1.12, Math.PI * 1.4); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(88, 90, 5, 0, Math.PI * 2); g.fill();
+    }),
+    spark: spriteTex((g) => {
+      g.translate(64, 64); g.fillStyle = '#ffffff';
+      g.beginPath();
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, r = i % 2 ? 9 : 60; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      g.closePath(); g.fill();
+      const r = g.createRadialGradient(0, 0, 0, 0, 0, 40);
+      r.addColorStop(0, 'rgba(255,255,255,0.9)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(-64, -64, 128, 128);
+    }),
+    coin: spriteTex((g) => {
+      g.fillStyle = '#c98a1a'; g.beginPath(); g.arc(64, 66, 52, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#f5c443'; g.beginPath(); g.arc(64, 60, 52, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fbdc7a'; g.beginPath(); g.arc(64, 60, 40, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#c98a1a'; g.font = '700 56px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', 64, 63);
+    }),
+  };
+  return spriteSet;
+}
+export function sprite(tex, size = 0.2, opts = {}) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, ...opts }));
+  s.scale.set(size, size, size);
+  return s;
+}
+
 // ---- Product mesh families --------------------------------------------------
 
 const G = {
@@ -150,6 +261,7 @@ const G = {
   jarLabel: new THREE.CylinderGeometry(0.0515, 0.0515, 0.04, 18, 1, true),
   tub: new THREE.CylinderGeometry(0.06, 0.052, 0.06, 18),
   tubLid: new THREE.CylinderGeometry(0.064, 0.064, 0.016, 18),
+  tubLabel: new THREE.CylinderGeometry(0.0612, 0.0548, 0.036, 18, 1, true),
   bar: new RoundedBoxGeometry(0.115, 0.042, 0.075, 2, 0.012),
   barBand: new THREE.BoxGeometry(0.05, 0.046, 0.079),
 };
@@ -159,10 +271,11 @@ export function productMesh(container, color, accent) {
   const g = new THREE.Group();
   if (container === 'jar') {
     g.add(at(shadow(new THREE.Mesh(G.jar, mat(color, { roughness: 0.3 }))), 0, 0.04, 0));
-    g.add(at(shadow(new THREE.Mesh(G.jarLabel, mat(PAL.cream, { roughness: 0.9 }))), 0, 0.04, 0));
+    g.add(at(shadow(new THREE.Mesh(G.jarLabel, labelMaterial(accent))), 0, 0.04, 0));
     g.add(at(shadow(new THREE.Mesh(G.jarLid, mat(accent, { roughness: 0.45, metalness: 0.25 }))), 0, 0.09, 0));
   } else if (container === 'tub') {
     g.add(at(shadow(new THREE.Mesh(G.tub, mat(color, { roughness: 0.35 }))), 0, 0.03, 0));
+    g.add(at(new THREE.Mesh(G.tubLabel, labelMaterial(accent)), 0, 0.03, 0));
     g.add(at(shadow(new THREE.Mesh(G.tubLid, mat(PAL.kraft, { roughness: 0.85 }))), 0, 0.067, 0));
     g.add(at(shadow(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.004, 14), mat(accent))), 0, 0.077, 0));
   } else {

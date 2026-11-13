@@ -9,15 +9,16 @@ import { fulfillOrder, spawnOrder } from '../sim/orders.js';
 import { buyUpgrade, startCampaign, homeGoals, homeProgress, signLease, clockLabel } from '../sim/business.js';
 import { todayProfit, transact } from '../sim/economy.js';
 import { sfx, audioSettings, setMusic, setSfx } from '../audio.js';
+import { ICONS, productIcon } from './icons.js';
 
 const NAV = [
-  { id: 'production', label: 'Production', ico: '🍳', title: 'Production', sub: 'Queue batches and watch your stations' },
-  { id: 'supplies', label: 'Supplies', ico: '🧺', title: 'Supplies', sub: 'Ingredients and packaging' },
-  { id: 'recipes', label: 'Recipes', ico: '📖', title: 'Recipe Book', sub: 'Products, formulas and prices' },
-  { id: 'upgrades', label: 'Upgrades', ico: '🛠️', title: 'Workshop Upgrades', sub: 'Tools, storage and help' },
-  { id: 'marketing', label: 'Marketing', ico: '📣', title: 'Marketing', sub: 'Demand and campaigns' },
-  { id: 'reports', label: 'Reports', ico: '📊', title: 'Reports', sub: 'Money, service and reviews' },
-  { id: 'staff', label: 'Staff', ico: '👥', title: 'Staff', sub: 'Unlocks with your first store', locked: true },
+  { id: 'production', label: 'Production', ico: ICONS.production, title: 'Production', sub: 'Queue batches and watch your stations' },
+  { id: 'supplies', label: 'Supplies', ico: ICONS.supplies, title: 'Supplies', sub: 'Ingredients and packaging' },
+  { id: 'recipes', label: 'Recipes', ico: ICONS.recipes, title: 'Recipe Book', sub: 'Products, formulas and prices' },
+  { id: 'upgrades', label: 'Upgrades', ico: ICONS.upgrades, title: 'Workshop Upgrades', sub: 'Tools, storage and help' },
+  { id: 'marketing', label: 'Marketing', ico: ICONS.marketing, title: 'Marketing', sub: 'Demand and campaigns' },
+  { id: 'reports', label: 'Reports', ico: ICONS.reports, title: 'Reports', sub: 'Money, service and reviews' },
+  { id: 'staff', label: 'Staff', ico: ICONS.staff, title: 'Staff', sub: 'Unlocks with your first store', locked: true },
 ];
 const PANELS = { production: productionPanel, supplies: suppliesPanel, recipes: recipesPanel, upgrades: upgradesPanel, marketing: marketingPanel, reports: reportsPanel, staff: staffPanel };
 
@@ -72,23 +73,23 @@ export class GameUI {
     const r = this.root;
     this.hud = el(`<div class="hud">
       <div class="brand"><div class="brand-mark">4</div><div class="brand-name"><small>the love of</small><b>Bubbles</b></div></div>
-      <div class="stat cash" data-h="cashbox" title="Cash on hand"><div class="ico">💰</div><div><div class="lbl">Cash</div><div class="val" data-h="cash"></div></div></div>
-      <div class="stat profit" title="Today's revenue minus today's expenses"><div class="ico" style="background:var(--green-soft)">📈</div><div><div class="lbl">Today's profit</div><div class="val" data-h="profit"></div></div></div>
-      <div class="stat" title="Reputation: the average of your recent customer reviews"><div class="ico">⭐</div><div><div class="lbl">Reputation</div><div class="val"><span data-h="rep"></span> <span class="stars">★★★★★<i data-h="repstars">★★★★★</i></span></div></div></div>
-      <div class="stat soul" title="Brand Soul: does the business still feel handmade, generous and reliable?"><div class="ico" style="background:var(--blush-soft)">💗</div><div><div class="lbl">Brand Soul</div><div class="val" style="display:flex;align-items:center;gap:7px"><span data-h="soul"></span><span class="meter"><i data-h="soulbar"></i></span></div></div></div>
-      <div class="stat orders-stat" title="Customers waiting on an order"><div class="ico" style="background:var(--teal-soft)">🛍️</div><div><div class="lbl">Customers</div><div class="val" data-h="cust"></div></div></div>
+      <div class="stat cash" data-h="cashbox" title="Cash on hand"><div class="ico">${ICONS.cash}</div><div><div class="lbl">Cash</div><div class="val" data-h="cash"></div></div></div>
+      <div class="stat profit" title="Today's revenue minus today's expenses"><div class="ico" style="background:var(--green-soft)">${ICONS.profit}</div><div><div class="lbl">Today's profit</div><div class="val" data-h="profit"></div></div></div>
+      <div class="stat" title="Reputation: the average of your recent customer reviews"><div class="ico">${ICONS.star}</div><div><div class="lbl">Reputation</div><div class="val"><span data-h="rep"></span> <span class="stars">★★★★★<i data-h="repstars">★★★★★</i></span></div></div></div>
+      <div class="stat soul" title="Brand Soul: does the business still feel handmade, generous and reliable?"><div class="ico" style="background:var(--blush-soft)">${ICONS.heart}</div><div><div class="lbl">Brand Soul</div><div class="val" style="display:flex;align-items:center;gap:7px"><span data-h="soul"></span><span class="meter"><i data-h="soulbar"></i></span></div></div></div>
+      <div class="stat orders-stat" title="Customers waiting on an order"><div class="ico" style="background:var(--teal-soft)">${ICONS.bag}</div><div><div class="lbl">Customers</div><div class="val" data-h="cust"></div></div></div>
       <div class="spacer"></div>
       <div class="clock"><div class="dayring" data-h="ring"></div><div><div class="day" data-h="day"></div><div class="time" data-h="time"></div></div></div>
       <div class="speed" data-h="speed">
-        <button data-act="speed" data-id="0" class="pause" title="Pause (Space)">❚❚</button><button data-act="speed" data-id="1" title="Normal speed (1)">1×</button><button data-act="speed" data-id="2" title="Fast (2)">2×</button><button data-act="speed" data-id="3" title="Faster (3)">3×</button>
+        <button data-act="speed" data-id="0" class="pause" title="Pause (Space)">${ICONS.pause}</button><button data-act="speed" data-id="1" title="Normal speed (1)">1×</button><button data-act="speed" data-id="2" title="Fast (2)">2×</button><button data-act="speed" data-id="3" title="Faster (3)">3×</button>
       </div>
-      <button class="icon-btn" data-act="menu" title="Menu (Esc)" style="width:38px;height:38px;font-size:17px">☰</button>
+      <button class="icon-btn" data-act="menu" title="Menu (Esc)" style="width:38px;height:38px;font-size:17px">${ICONS.menu}</button>
     </div>`);
     this.h = {};
     this.hud.querySelectorAll('[data-h]').forEach((n) => { this.h[n.dataset.h] = n; });
 
     this.nav = el(`<nav class="nav">${NAV.map((n) => `<button data-act="nav" data-id="${n.id}" class="${n.locked ? 'locked' : ''}" title="${n.title}"><span class="ico">${n.ico}</span>${n.label}</button>`).join('')}</nav>`);
-    this.panel = el(`<aside class="panel" hidden><div class="panel-head"><div style="flex:1"><h2></h2><div class="sub"></div></div><button class="icon-btn" data-act="closepanel" title="Close">✕</button></div><div class="panel-body"></div></aside>`);
+    this.panel = el(`<aside class="panel" hidden><div class="panel-head"><div style="flex:1"><h2></h2><div class="sub"></div></div><button class="icon-btn" data-act="closepanel" title="Close">${ICONS.close}</button></div><div class="panel-body"></div></aside>`);
     this.orders = el(`<aside class="orders"><div class="orders-head"><h2>Orders</h2><span class="chip" data-h="ordcount"></span></div><div class="orders-auto" hidden style="padding:8px 14px 0"><span class="toggle" data-act="auto"><i></i>Helper auto-fulfills</span></div><div class="orders-list"></div></aside>`);
     this.ordersList = this.orders.querySelector('.orders-list');
     this.ordCount = this.orders.querySelector('[data-h=ordcount]');
@@ -224,6 +225,9 @@ export class GameUI {
     const n = NAV.find((x) => x.id === id);
     this.panel.hidden = false;
     this.panel.style.animation = 'none'; void this.panel.offsetWidth; this.panel.style.animation = '';
+    this.panel.classList.add('fresh');
+    clearTimeout(this._freshT);
+    this._freshT = setTimeout(() => this.panel.classList.remove('fresh'), 600);
     this.panel.querySelector('h2').textContent = n.title;
     this.panel.querySelector('.sub').textContent = n.sub;
     this.panel.querySelector('.panel-body').scrollTop = 0;
@@ -247,11 +251,11 @@ export class GameUI {
       if (o && sku) { o.lines = [{ skuId, qty: 2, price: sku.price }]; o.total = 2 * sku.price; }
     });
     on('batchStarted', () => sfx('queue'));
-    on('batchDone', ({ station, job }) => { sfx('done'); const sku = getSku(g.state, job.skuId); this.toast('✅', `${sku.name} is ready`, `${job.units} units to shelve`, 'good'); this.float(`station${station}`, '✓ Ready!', 'star'); });
-    on('goodsStocked', ({ units }) => { sfx('pop'); this.float('shelf', `+${units} in stock`, 'star'); this._tutAt(2, 3); });
+    on('batchDone', ({ station, job }) => { sfx('done'); const sku = getSku(g.state, job.skuId); this.toast('✅', `${sku.name} is ready`, `${job.units} units to shelve`, 'good'); this.float(`station${station}`, '✓ Ready!', 'star'); w.burst('spark', `station${station}`, 12); });
+    on('goodsStocked', ({ units }) => { sfx('pop'); this.float('shelf', `+${units} in stock`, 'star'); w.burst('bubble', 'shelf', 8); this._tutAt(2, 3); });
     on('orderNew', (o) => { sfx('order'); if (o.channel === 'Big orders') this.toast('🏢', `Big order from ${o.customer}!`, `${money(o.total)} · generous deadline`, 'gold'); });
     on('orderQueued', () => this._tutAt(3, 3));
-    on('orderShipped', ({ order, late }) => { sfx('coin'); w.shipParcel(); this.float('packing', `+${money(order.total)}`, 'money'); this.bump(); if (late) this.toast('🐢', `Shipped late to ${order.customer}`, 'Late orders earn weaker reviews', 'bad'); this._tutAt(3, 4); });
+    on('orderShipped', ({ order, late }) => { sfx('coin'); w.shipParcel(); w.burst('coin', 'packing', 6); w.cheer(order.claimedBy || 'founder'); this.float('packing', `+${money(order.total)}`, 'money'); this.bump(); if (late) this.toast('🐢', `Shipped late to ${order.customer}`, 'Late orders earn weaker reviews', 'bad'); this._tutAt(3, 4); });
     on('orderExpired', (o) => { sfx('sad'); this.toast('💔', `${o.customer} gave up waiting`, `Lost a ${money(o.total)} order`, 'bad'); });
     on('supplyOrdered', () => this._tutAt(4, 5));
     on('delivery', (d) => { sfx('delivery'); w.deliverBox(); this.float('door', '📦 Delivery!', 'star'); this.toast('📦', 'Supplies delivered', Object.entries(d.items).map(([id, q]) => `${q} ${INGREDIENTS[id].name}`).join(', ')); });
@@ -330,7 +334,8 @@ export class GameUI {
     const tg = (on) => `class="toggle ${on ? 'on' : ''}"`;
     const render = () => this.modal(`<h2>Paused</h2>
       <div class="card"><div class="row"><span class="grow title">Music</span><span ${tg(audioSettings.music)} data-act="m-music"><i></i></span></div>
-      <div class="row"><span class="grow title">Sound effects</span><span ${tg(audioSettings.sfx)} data-act="m-sfx"><i></i></span></div></div>
+      <div class="row"><span class="grow title">Sound effects</span><span ${tg(audioSettings.sfx)} data-act="m-sfx"><i></i></span></div>
+      <div class="row"><div class="grow"><div class="title">Detailed graphics</div><div class="tiny">Soft contact shadows and sharper rendering. Turn off on slower computers.</div></div><span ${tg(this.app.engine.quality === 'high')} data-act="m-gfx"><i></i></span></div></div>
       <div class="keys"><kbd>Drag</kbd><span>Rotate the camera</span><kbd>Scroll</kbd><span>Zoom in and out</span><kbd>W A S D</kbd><span>Move the camera · <kbd>Q</kbd> <kbd>E</kbd> rotate</span><kbd>Space</kbd><span>Pause · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> game speed</span></div>
       <div class="actions" style="justify-content:stretch;flex-direction:column">
         <button class="btn teal block" data-act="m-resume">Resume</button>
@@ -342,6 +347,7 @@ export class GameUI {
       'm-save': () => { this.app.save(); sfx('done'); this.closeModal(); this.toast('💾', 'Game saved', '', 'good'); },
       'm-music': () => { setMusic(!audioSettings.music); this.app.savePrefs(); const p = this._wasPaused; render(); this._wasPaused = p; },
       'm-sfx': () => { setSfx(!audioSettings.sfx); this.app.savePrefs(); const p = this._wasPaused; render(); this._wasPaused = p; },
+      'm-gfx': () => { this.app.setQuality(this.app.engine.quality === 'high' ? 'low' : 'high', true); const p = this._wasPaused; render(); this._wasPaused = p; },
       'm-help': () => { const p = this._wasPaused; this.showHelp(); this._wasPaused = p; },
       'm-title': () => { this.app.save(); this.closeModal(); this.app.quitToTitle(); },
     });
@@ -460,9 +466,9 @@ export class GameUI {
     const goals = homeGoals(s), pct = Math.round(homeProgress(s) * 100);
     let gh;
     if (s.milestone.leaseSigned) gh = `<div class="head">🗝️ Lease signed · your first store is the next chapter</div>`;
-    else if (s.milestone.outgrown) gh = `<div class="head">🏪 You've outgrown the kitchen! <span class="pct">Sign the lease →</span></div>`;
+    else if (s.milestone.outgrown) gh = `<div class="head">${ICONS.store} You've outgrown the kitchen! <span class="pct">Sign the lease →</span></div>`;
     else {
-      gh = `<div class="head">🏪 Road to your first store <span class="pct">${pct}%  ${this.goalOpen ? '▾' : '▴'}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+      gh = `<div class="head">${ICONS.store} Road to your first store <span class="pct">${pct}%  ${this.goalOpen ? '▾' : '▴'}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
       if (this.goalOpen) {
         gh += `<div class="list">${goals.map((g) => `<div class="g ${g.done ? 'done' : ''}"><span>${g.done ? '✅' : '⬜'}</span><span>${g.label}</span><b>${g.money ? money(Math.min(g.value, g.target)) : g.decimals ? g.value.toFixed(1) : Math.min(g.value, g.target)} / ${g.money ? money(g.target) : g.target}</b>${g.hint && !g.done ? `<small>${g.hint}</small>` : ''}</div>`).join('')}
           <div class="g"><span>💰</span><span>Then: lease deposit</span><b>${money(HOME_GOALS.leaseDeposit)}</b></div></div>`;
@@ -552,7 +558,7 @@ goals ${Math.round(homeProgress(s) * 100)}% · fps ${this.app.fps ? this.app.fps
     s.stations.forEach((st) => {
       if (!st.unlocked || !st.job) return;
       const sku = getSku(s, st.job.skuId);
-      const sw = `<span class="sw" style="background:${SCENTS[sku.scentId].color}">${PRODUCTS[sku.productId].icon}</span>`;
+      const sw = `<span class="sw" style="background:${SCENTS[sku.scentId].color}">${productIcon(PRODUCTS[sku.productId].container)}</span>`;
       if (st.phase === 'running') want.set(`st${st.id}`, { a: `station${st.id}`, cls: 'pill', html: `${sw}<span class="pbar"><i style="width:${stationProgress(st) * 100}%"></i></span>`, k: 'run' + st.job.id, live: (n) => { n.querySelector('.pbar i').style.width = `${stationProgress(st) * 100}%`; } });
       else if (st.phase === 'done') want.set(`st${st.id}`, st.blocked ? { a: `station${st.id}`, cls: 'pill warn', html: '⚠ Stock shelf is full', k: 'blk' } : { a: `station${st.id}`, cls: 'pill ready', html: `✓ ${st.job.units} ready`, k: 'done' + st.job.id });
       else want.set(`st${st.id}`, { a: `station${st.id}`, cls: 'pill', html: `${sw} Prepping…`, k: 'prep' + st.job.id });
