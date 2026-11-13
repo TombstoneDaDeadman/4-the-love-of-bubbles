@@ -12,6 +12,7 @@ import { saveGame, loadGame, hasSave, clearSave } from './sim/save.js';
 import { GameUI } from './ui/ui.js';
 import { FOUNDER_OPTIONS } from './data.js';
 import { unlockAudio, sfx, audioSettings, setMusic, setSfx } from './audio.js';
+import { guideHtml } from './ui/guide.js';
 
 const PREFS_KEY = 'ftlob.prefs';
 const storage = (() => { try { localStorage.setItem('ftlob.t', '1'); localStorage.removeItem('ftlob.t'); return localStorage; } catch (e) { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v), removeItem: (k) => m.delete(k) }; } })();
@@ -91,6 +92,7 @@ function showTitle() {
       <div class="menu">
         ${canContinue ? `<button class="btn lg teal" data-t="continue">Continue</button>` : ''}
         <button class="btn lg ${canContinue ? 'ghost' : ''}" data-t="new">New business</button>
+        <button class="btn ghost" data-t="guide">How to play</button>
       </div>
       <div class="foot">From a kitchen stovetop to a store of your own.</div>
     </div></div>`);
@@ -99,6 +101,7 @@ function showTitle() {
     const b = e.target.closest('[data-t]');
     if (!b) return;
     unlockAudio(); sfx('pop');
+    if (b.dataset.t === 'guide') { showTitleGuide(); return; }
     if (b.dataset.t === 'continue') {
       const st = loadGame(storage);
       if (st) return startGame(st);
@@ -107,6 +110,19 @@ function showTitle() {
     }
     if (canContinue && !b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Start over? Click again'; return; }
     showCreator();
+  });
+}
+
+// The guide from the title screen: only Chapter One and the controls are open (no spoilers).
+function showTitleGuide(chapter = 'home') {
+  const old = uiRoot.querySelector('.scrim.title-guide');
+  if (old) old.remove();
+  const w = el(`<div class="scrim title-guide"><div class="modal wide">${guideHtml(chapter, null)}<div class="actions"><button class="btn teal" data-g="close">Back</button></div></div></div>`);
+  uiRoot.append(w);
+  w.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-guide]');
+    if (tab) { sfx('click'); showTitleGuide(tab.dataset.guide); return; }
+    if (e.target.closest('[data-g=close]') || e.target === w) { sfx('click'); w.remove(); }
   });
 }
 

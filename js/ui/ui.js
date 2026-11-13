@@ -16,6 +16,7 @@ import { placeFurniture, moveFurniture, rotateFurniture, sellFurniture, assignSl
 import { hireStaff, fireStaff, setStaffRole, staffRecord, setShift, trainStaff } from '../sim/staff.js';
 import { checkPlacement, footprint } from '../sim/path.js';
 import { storesPanel, locationCards, kitchenPanel, companyPanel } from './chainPanels.js';
+import { guideHtml, currentChapter } from './guide.js';
 import { buildKitchen, addLine, setKitchen, acceptContract, declineContract, hireRegional, dismissRegional, chainGoals } from '../sim/company.js';
 import { currentId, withStore, storeName, transferStock, expansionGoals, storeIds } from '../sim/chain.js';
 import { roleAllowed } from '../sim/staff.js';
@@ -45,6 +46,13 @@ const STORE_NAV = [
 const HIDDEN_PANELS = { display: { id: 'display', title: 'Display', sub: 'Choose what this display shows' } };
 const STORE_PANELS = { ...PANELS, staff: storeStaffPanel, stores: storesPanel, kitchen: kitchenPanel, company: companyPanel };
 
+
+const CHAIN_TUTORIAL = [
+  { text: () => `Your second shop is open! Nobody works here yet: open <b>Staff</b> and hire a <b>Store Manager</b> and a cashier. A manager orders stock from Main Street by themselves.`, nav: 'staff' },
+  { text: () => `The <b>Chain</b> panel shows every shop side by side. Use <b>Go there</b> (or the shop name in the top bar) to switch, and send stock between shops by courier.`, nav: 'stores' },
+  { text: () => `One workroom can't feed a whole chain for long. When you can, build the <b>Central Kitchen</b>: automated lines, a warehouse, and delivery trucks every morning.`, nav: 'kitchen' },
+  { text: () => `<b>Company</b> has wholesale offers from spas and hotels, a Regional Manager, and the big goals that finish the story. Open <b>?</b> any time for the full guide.`, nav: 'company', last: true },
+];
 
 const STORE_TUTORIAL = [
   { text: (n) => `Welcome to Main Street, ${n}! Shoppers walk in, browse your displays and pay at the till. With no cashier yet, you'll pop out of the workroom to ring them up. Open <b>Staff</b> to hire some help.`, nav: 'staff' },
@@ -129,6 +137,7 @@ export class GameUI {
       <div class="speed" data-h="speed">
         <button data-act="speed" data-id="0" class="pause" title="Pause (Space)">${ICONS.pause}</button><button data-act="speed" data-id="1" title="Normal speed (1)">1×</button><button data-act="speed" data-id="2" title="Fast (2)">2×</button><button data-act="speed" data-id="3" title="Faster (3)">3×</button>
       </div>
+      <button class="icon-btn help-btn" data-act="guide" title="How to play (?)">?</button>
       <button class="icon-btn" data-act="menu" title="Menu (Esc)" style="width:38px;height:38px;font-size:17px">${ICONS.menu}</button>
     </div>`);
     this.h = {};
@@ -152,6 +161,10 @@ export class GameUI {
     this.labelsRoot.append(this.tip);
 
     this._onClick = (e) => {
+      const gt = e.target.closest('[data-guide]');
+      if (gt) { sfx('click'); this.showGuide(gt.dataset.guide); return; }
+      const sm = e.target.closest('[data-showme]');
+      if (sm) { sfx('open'); this.closeModal(); this.openPanel(sm.dataset.showme); return; }
       const t = e.target.closest('[data-act]');
       if (!t || t.disabled) return;
       this._act(t.dataset.act, t.dataset.id, t);
@@ -306,7 +319,8 @@ export class GameUI {
       case 'fulfill': result(this.isStore ? withStore(s, 'main', () => fulfillOrder(g, id)) : fulfillOrder(g, id), 'pop'); break;
       case 'auto': s.settings.autoFulfill = !s.settings.autoFulfill; sfx('click'); this.refresh(true); break;
       case 'skiptut': this._tut().done = true; sfx('click'); this.refresh(true); break;
-      case 'nexttut': if (this.isStore) this._storeTutAdvance(s.store.tutorial.step + 1); else this._tutAdvance(s.tutorial.step + 1); break;
+      case 'nexttut': { const [t, list] = this._tutSet(); this._advance(t, list, t.step + 1); break; }
+      case 'guide': sfx('open'); this.showGuide(); break;
       case 'b-place': this.bm.placing = id; this.bm.moving = null; this.bm.rot = 0; this.bm.selected = null; this.app.world.setSelected(null); sfx('click'); this.refresh(true); break;
       case 'b-rot': this.bm.rot = (this.bm.rot + 1) % 4; sfx('click'); this._ghostCheck(); this.refresh(true); break;
       case 'b-cancel': this._cancelPlace(); break;
@@ -353,6 +367,7 @@ export class GameUI {
     else if (e.key === '1' || e.key === '2' || e.key === '3') this.setSpeed(Number(e.key));
     else if ((e.key === 'r' || e.key === 'R') && this.bm.placing) { this.bm.rot = (this.bm.rot + 1) % 4; sfx('click'); this._ghostCheck(); this.refresh(true); }
     else if (e.key === 'Escape') { if (this.modalOpen) this.closeModal(); else if (this.bm.placing) this._cancelPlace(); else if (this.panelId) this.closePanel(); else this.showMenu(); }
+    else if (e.key === '?' || (e.key === '/' && e.shiftKey)) { if (!this.modalOpen) { sfx('open'); this.showGuide(); } }
     else if (e.key === '`' || e.key === '~') { this.devOpen = !this.devOpen; this.dev.hidden = !this.devOpen; this.refresh(true); }
   }
 
@@ -371,6 +386,8 @@ export class GameUI {
     if (id === 'build') this.app.world.setBuildMode(true);
     const stt = this.isStore && this.game.state.store.tutorial;
     if (stt && !stt.done && ((stt.step === 1 && id === 'display') || (stt.step === 2 && id === 'build'))) this._storeTutAdvance(stt.step + 1);
+    const [ct, clist] = this._tutSet();
+    if (clist === CHAIN_TUTORIAL && !ct.done && clist[ct.step] && clist[ct.step].nav === id && !clist[ct.step].last) this._advance(ct, clist, ct.step + 1);
     this.panel.hidden = false;
     this.panel.style.animation = 'none'; void this.panel.offsetWidth; this.panel.style.animation = '';
     this.panel.classList.add('fresh');
@@ -448,7 +465,29 @@ export class GameUI {
     on('cash', ({ amount }) => { if (amount < 0) this.bump(); });
   }
 
-  _tut() { return this.isStore ? this.game.state.store.tutorial : this.game.state.tutorial; }
+  // Which coach is active: the chain's (once there is a second shop), the store's, or the kitchen's.
+  _tutSet() {
+    const s = this.game.state;
+    if (this.isStore && storeIds(s).length > 1) {
+      s.chainTutorial = s.chainTutorial || { step: 0, done: false };
+      if (!s.chainTutorial.done) return [s.chainTutorial, CHAIN_TUTORIAL, 'Your chain'];
+    }
+    if (this.isStore) return [s.store.tutorial, STORE_TUTORIAL, 'Your first store'];
+    return [s.tutorial, TUTORIAL, 'Getting started'];
+  }
+  _tut() { return this._tutSet()[0]; }
+  _advance(t, list, next) {
+    if (next >= list.length) t.done = true; else t.step = next;
+    this.coachHtml = '';
+    this.refresh(true);
+  }
+  // Start the current chapter's tips over.
+  replayTips() {
+    const [t] = this._tutSet();
+    t.step = 0; t.done = false;
+    this.coachHtml = '';
+    this.refresh(true);
+  }
   _storeTutAdvance(next) {
     const t = this.game.state.store.tutorial;
     if (next >= STORE_TUTORIAL.length) t.done = true; else t.step = next;
@@ -527,6 +566,7 @@ export class GameUI {
         <button class="btn teal block" data-act="m-resume">Resume</button>
         <button class="btn ghost block" data-act="m-save">Save game</button>
         <button class="btn ghost block" data-act="m-help">How to play</button>
+        <button class="btn ghost block" data-act="m-tips">Replay the tips</button>
         <button class="btn ghost block" data-act="m-title">Save &amp; return to title</button>
       </div>`, {
       'm-resume': () => { sfx('click'); this.closeModal(); },
@@ -534,10 +574,22 @@ export class GameUI {
       'm-music': () => { setMusic(!audioSettings.music); this.app.savePrefs(); const p = this._wasPaused; render(); this._wasPaused = p; },
       'm-sfx': () => { setSfx(!audioSettings.sfx); this.app.savePrefs(); const p = this._wasPaused; render(); this._wasPaused = p; },
       'm-gfx': () => { this.app.setQuality(this.app.engine.quality === 'high' ? 'low' : 'high', true); const p = this._wasPaused; render(); this._wasPaused = p; },
-      'm-help': () => { const p = this._wasPaused; this.showHelp(); this._wasPaused = p; },
+      'm-help': () => { const p = this._wasPaused; this.showGuide(); this._wasPaused = p; },
+      'm-tips': () => { sfx('click'); this.closeModal(); this.replayTips(); },
       'm-title': () => { this.app.save(); this.closeModal(); this.app.quitToTitle(); },
     });
     render();
+  }
+
+  // The "How to play" guide, opened on the current chapter.
+  showGuide(chapter) {
+    const s = this.game.state;
+    const reopen = this.modalOpen;
+    const wasPaused = reopen ? this._wasPaused : s.time.paused;
+    const panels = new Set(this.navList.map((n) => n.id));
+    this.modal(guideHtml(chapter || currentChapter(s), s, (id) => panels.has(id)) + `<div class="actions"><button class="btn teal" data-act="m-ok">Back to the game</button></div>`, { 'm-ok': () => { sfx('click'); this.closeModal(); } });
+    this._wasPaused = wasPaused;
+    this.modalWrap.querySelector('.modal').classList.add('wide');
   }
 
   showHelp() {
@@ -650,7 +702,7 @@ export class GameUI {
     this.hint.style.visibility = this.panelId ? 'hidden' : '';
 
     // nav
-    const tut = this._tut(), TUT = this.isStore ? STORE_TUTORIAL : TUTORIAL;
+    const [tut, TUT, tutLabel] = this._tutSet();
     const tutNav = !tut.done && TUT[tut.step] ? TUT[tut.step].nav : null;
     this.nav.querySelectorAll('button').forEach((b) => {
       b.classList.toggle('on', b.dataset.id === this.panelId);
@@ -725,7 +777,7 @@ export class GameUI {
     this.coach.classList.toggle('shifted', !!this.panelId);
     if (showCoach) {
       const step = TUT[tut.step];
-      const ch = `<div class="av">🫧</div><div><div class="step">${this.isStore ? 'Your first store' : 'Getting started'} · ${tut.step + 1} of ${TUT.length}</div><p>${step.text(esc(s.founder.name))}</p>${step.last ? `<a class="skip" data-act="nexttut">Got it, thanks!</a>` : `<a class="skip" data-act="skiptut">Skip the tutorial</a>`}</div>`;
+      const ch = `<div class="av">🫧</div><div><div class="step">${tutLabel} · ${tut.step + 1} of ${TUT.length}</div><p>${step.text(esc(s.founder.name))}</p>${step.last ? `<a class="skip" data-act="nexttut">Got it, thanks!</a>` : `<a class="skip" data-act="skiptut">Skip the tutorial</a>`}</div>`;
       if (ch !== this.coachHtml) { this.coach.innerHTML = ch; this.coachHtml = ch; this.coach.style.animation = 'none'; void this.coach.offsetWidth; this.coach.style.animation = ''; }
     }
 

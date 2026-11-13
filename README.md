@@ -99,7 +99,12 @@ business still feel handmade, generous and reliable?).
 | Space | Pause |
 | 1 / 2 / 3 | Game speed |
 | Esc | Menu / close panel |
+| ? | How to play (the guide) |
 | ` (backtick) | Developer diagnostics |
+
+**How to play** is on the title screen, in the pause menu and behind the **?** button: one tab per
+chapter (later chapters stay closed until you reach them), with "Show me" buttons that open the
+right panel. Each chapter also has short coach tips; **Replay the tips** in the menu starts them over.
 
 Click the stove, pantry, shelves, packing table or laptop in the room to open the matching panel.
 In the store, click a display to choose its products, or the till for the shop-floor overview.
@@ -139,6 +144,7 @@ js/world/             three.js presentation (reads state, never changes it)
 js/ui/                HUD, panels, orders rail, tutorial, modals, diagnostics
   storePanels.js      Era II panels: Build, Shop Floor, Display, Staff
   chainPanels.js      Era III panels: Chain, location picker, Kitchen, Company
+  guide.js            the How to play guide (chapter tabs, topic cards, spoiler-free)
   icons.js            hand-drawn SVG icon set and product silhouettes
 js/audio.js           synthesised sound effects and music (no audio files)
 tests/sim.test.mjs    economy, inventory, production, save and soak tests

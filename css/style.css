@@ -471,3 +471,28 @@ table.pl td:first-child, table.pl th:first-child { text-align: left; }
   .hud:has(.storepill) .stat .ico { width: 28px; height: 28px; }
   .hud:has(.storepill) .stat .val { font-size: 15.5px; }
 }
+
+/* ---- How to play guide ---------------------------------------------------------------- */
+.modal.wide { width: min(820px, 100%); }
+.guide h2 { margin: 0 0 10px; }
+.guide-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.guide-tabs button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 9px 11px; border-radius: 14px; border: 1.5px solid var(--line); background: #fffaf2; cursor: pointer; font: inherit; text-align: left; color: var(--ink); }
+.guide-tabs button span { font-size: 19px; }
+.guide-tabs button b { font-family: var(--display); font-size: 15px; }
+.guide-tabs button small { font-size: 11.5px; color: #9a8572; font-weight: 700; }
+.guide-tabs button.on { background: var(--blush-soft, #fbe4ea); border-color: #e98fa5; }
+.guide-tabs button.locked { opacity: .55; }
+.guide-body { max-height: min(52vh, 520px); overflow: auto; padding-right: 4px; }
+.guide-intro { font-size: 14.5px; margin: 0 0 12px; }
+.guide-topics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.guide-topic { display: flex; gap: 10px; align-items: flex-start; background: #fffaf2; border-radius: 14px; padding: 10px 12px; box-shadow: 0 2px 8px rgba(74, 55, 40, .07); }
+.guide-topic .gi { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--teal-soft, #d6ecea); }
+.guide-topic .gi .ic { width: 20px; height: 20px; }
+.guide-topic b { font-size: 14px; }
+.guide-topic p { margin: 3px 0 6px; font-size: 13px; line-height: 1.45; }
+.guide-locked { text-align: center; padding: 30px 10px; }
+.guide-locked h3 { font-family: var(--display); margin: 8px 0 4px; }
+.help-btn { width: 38px; height: 38px; font-size: 18px; font-weight: 800; font-family: var(--display); }
+.titlescreen .menu .btn.ghost[data-t=guide] { margin-top: 2px; }
+.scrim.title-guide { z-index: 60; } /* above the title screen (50) */
+@media (max-width: 700px) { .guide-tabs { grid-template-columns: repeat(2, 1fr); } .guide-topics { grid-template-columns: 1fr; } }
