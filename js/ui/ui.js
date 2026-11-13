@@ -135,7 +135,7 @@ export class GameUI {
     this.hud.querySelectorAll('[data-h]').forEach((n) => { this.h[n.dataset.h] = n; });
 
     if (this.isStore && !this.game.state.milestone.chainReady) this.navList = this.navList.filter((n) => !n.chain);
-    this.nav = el(`<nav class="nav">${this.navList.map((n) => `<button data-act="nav" data-id="${n.id}" class="${n.locked ? 'locked' : ''}" title="${n.title}"><span class="ico">${n.ico}</span>${n.label}</button>`).join('')}</nav>`);
+    this.nav = el(`<nav class="nav ${this.navList.length > 9 ? 'long' : ''}">${this.navList.map((n) => `<button data-act="nav" data-id="${n.id}" class="${n.locked ? 'locked' : ''}" title="${n.title}"><span class="ico">${n.ico}</span>${n.label}</button>`).join('')}</nav>`);
     this.panel = el(`<aside class="panel" hidden><div class="panel-head"><div style="flex:1"><h2></h2><div class="sub"></div></div><button class="icon-btn" data-act="closepanel" title="Close">${ICONS.close}</button></div><div class="panel-body"></div></aside>`);
     this.orders = el(`<aside class="orders"><div class="orders-head"><h2>${this.isStore ? 'Online orders' : 'Orders'}</h2><span class="chip" data-h="ordcount"></span></div><div class="orders-auto" hidden style="padding:8px 14px 0"><span class="toggle" data-act="auto"><i></i>${this.isStore ? 'Auto-fulfill when in stock' : 'Helper auto-fulfills'}</span></div><div class="orders-list"></div></aside>`);
     this.ordersList = this.orders.querySelector('.orders-list');

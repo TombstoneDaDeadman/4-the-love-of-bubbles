@@ -456,3 +456,18 @@ table.pl td:first-child, table.pl th:first-child { text-align: left; }
 .finale-stats div { background: #fbf4ea; border-radius: 12px; padding: 8px; text-align: center; }
 .finale-stats b { display: block; font-family: var(--display); font-size: 20px; }
 .finale-stats small { font-size: 11px; color: #9a8572; font-weight: 700; }
+
+/* Era III: a chain has more to show. The nav scrolls and tightens when it is long, and the top bar
+   gives up the wordmark (the "4" stays) to make room for the shop name. */
+.nav { max-height: calc(100% - var(--hud-h) - 34px); overflow-y: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { display: none; }
+.nav.long { gap: 2px; padding: 6px 5px; }
+.nav.long button { padding: 4px 2px 4px; }
+.nav.long button .ico { height: 28px; }
+.hud:has(.storepill) .brand-name { display: none; }
+@media (max-width: 1400px) {
+  .hud:has(.storepill) { gap: 7px; }
+  .hud:has(.storepill) .stat { padding: 5px 9px 5px 6px; gap: 7px; }
+  .hud:has(.storepill) .stat .ico { width: 28px; height: 28px; }
+  .hud:has(.storepill) .stat .val { font-size: 15.5px; }
+}
