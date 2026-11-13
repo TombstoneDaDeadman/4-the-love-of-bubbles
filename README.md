@@ -3,7 +3,7 @@
 A warm, stylised 3D tycoon game about growing a handmade bath, body, skin and hair-care business,
 from a kitchen stovetop to a store of your own. It runs entirely in the browser.
 
-**Chapter One: The Home Business** and **Chapter Two: The First Store** are playable now.
+All three chapters are playable: **The Home Business**, **The First Store** and **The Retail Chain**.
 
 ## Play
 
@@ -64,6 +64,27 @@ to the workroom in the back; the front is a shop floor you lay out yourself.
 8. **Reports** show each day's store profit and loss and the shop's best sellers, built straight
    from the transaction ledger.
 
+### Chapter Three: the chain
+
+Once Main Street is established (revenue, store rating, a team, a few days of trading), the brand
+can grow.
+
+1. **Choose a location**: Riverside Market Hall, Old Town Lane, the University Quarter or the
+   Harbour Promenade. Each has its own rent, foot traffic, shopper mix, spending power and colours.
+2. **Run several shops**: each has its own floor, staff, back stock, shoppers and rating. Switch
+   between them from the shop name in the top bar; every shop keeps trading while you're away.
+   A **Store Manager** runs a branch on their own and orders stock from Main Street.
+3. **Move stock** between shops by courier, and compare shops in the Chain panel (KPIs and
+   profit by shop, straight from the ledger).
+4. **Central kitchen**: automated production lines and a warehouse across town. Delivery trucks
+   top up every shop each morning (optionally again at midday), by a par level or by a forecast
+   from yesterday's sales.
+5. **Wholesale contracts** with spas, salons and hotels: daily deliveries for a few days, with
+   penalties for missing them. A **Regional Manager** balances stock between shops and keeps
+   every shop running a little better.
+6. **The brand**: revenue by channel, a quality index, Brand Soul, and the big goals. Meet them
+   all for the ending; the shops are yours to keep running afterwards.
+
 Two long-term meters matter: **Reputation** (recent customer reviews) and **Brand Soul** (does the
 business still feel handmade, generous and reliable?).
 
@@ -105,6 +126,8 @@ js/sim/               the simulation. No DOM, no rendering, fully unit-tested
   staff.js            Era II: hiring, roles, wages, store-era founder/cashier/associate tasks
   path.js             store grid, placement validation, A* pathfinding
   people.js           generated shopper/staff looks and staff records
+  chain.js            Era III: several stores (live-slot swapping), locations, transfers, KPIs
+  company.js          Era III: central kitchen, distribution, wholesale, regional manager, goals
   business.js         upgrades, marketing, goals, the master tick / game clock
   save.js             versioned save/load, autosave, rolling backup, migrations
 js/world/             three.js presentation (reads state, never changes it)
@@ -115,12 +138,15 @@ js/world/             three.js presentation (reads state, never changes it)
   store.js            the Main Street store scene (pooled shoppers, merged meshes)
 js/ui/                HUD, panels, orders rail, tutorial, modals, diagnostics
   storePanels.js      Era II panels: Build, Shop Floor, Display, Staff
+  chainPanels.js      Era III panels: Chain, location picker, Kitchen, Company
   icons.js            hand-drawn SVG icon set and product silhouettes
 js/audio.js           synthesised sound effects and music (no audio files)
 tests/sim.test.mjs    economy, inventory, production, save and soak tests
 tests/store.test.mjs  store, build validation, pathfinding, recovery, staff, save and soak tests
 tests/store4.test.mjs product lines, cleaning, shifts, training, restock rules, design, marketing,
                       save migration, and a full-loop soak whose reports must reconcile with the ledger
+tests/chain.test.mjs  several stores: swapping, branches, managers, transfers, per-store P&L, soak
+tests/company.test.mjs kitchen, distribution, wholesale, regional manager, finale, two-week chain soak
 ```
 
 ## Tests
@@ -160,4 +186,7 @@ services (TimeService, EconomyService, InventoryService and so on) as modules un
       buying, checkout queue, basic staff, store rating, simple build mode)
 - [x] Milestone 4: first store full loop (restock rules, cleaning, schedules and training, more
       archetypes, store design score, local marketing, more products, profitability reports)
-- [ ] Milestone 5 and 6: second store and chain management
+- [x] Milestone 5: expansion (location choice, second store, managers, per-store KPIs, switching,
+      transfers)
+- [x] Milestone 6: chain management (central kitchen, distribution, wholesale, regional managers,
+      brand-wide reports, late-game goals and ending)

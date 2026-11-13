@@ -23,6 +23,8 @@ export const ICONS = {
   lock: svg(`<rect ${T} x="5.500" y="11" width="13" height="9" rx="2.500"/><path d="M8.500 11V8a3.500 3.500 0 0 1 7 0v3"/>`),
   build: svg(`<path ${T} d="M4 20V9.500l8-5.500 8 5.500V20z"/><path d="M4 13.500h16M9 20v-6.500M15 20v-6.500M12 4v4"/>`),
   chain: svg(`<path ${T} d="M2.500 12l3-3.500 3 3.500v7h-6zM9 10l3-4 3 4v9H9zM15.500 12l3-3.500 3 3.500v7h-6z"/><path d="M11 19v-3h2v3"/>`),
+  kitchen: svg(`<path ${T} d="M3 20V10l5 3V10l5 3V10l5 3V5h3v15z"/><path d="M7 17h2M12 17h2M17 17h1"/>`),
+  company: svg(`<circle ${T} cx="12" cy="12" r="8.500"/><path d="M12 3.500v17M3.500 12h17M6 6.500c3.500 2.500 8.500 2.500 12 0M6 17.500c3.500-2.500 8.500-2.500 12 0"/>`),
   store: svg(`<path ${T} d="M4 10l1.500-5h13L20 10v10H4z"/><path d="M4 10h16M10 20v-5h4v5"/>`),
 };
 

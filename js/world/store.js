@@ -685,6 +685,32 @@ export class StoreWorld {
     const from = new THREE.Vector3(-5.4, 3.2, -3.4), to = new THREE.Vector3(-5.9, 0.0, -2.9);
     this.tween(1.3, (k) => { const e = k * k * (3 - 2 * k); b.position.lerpVectors(from, to, e); b.scale.setScalar(k < 0.15 ? k / 0.15 : k > 0.85 ? Math.max(0.01, (1 - k) / 0.15) : 1); }, () => this.root.remove(b));
   }
+  // Era III: a little delivery van pulls up outside when stock arrives from the kitchen or another shop.
+  truck() {
+    if (this._truckBusy) return;
+    this._truckBusy = true;
+    if (!this._truck) {
+      const g = new THREE.Group();
+      const body = mat('#fbf3e4', { roughness: 0.5 }), trim = mat(this.theme.awning, { roughness: 0.5 });
+      g.add(at(box(2.2, 1.2, 1.1, body, 0.08), -0.25, 0.9, 0));
+      g.add(at(box(0.9, 0.9, 1.06, trim, 0.1), 1.2, 0.75, 0));
+      g.add(at(box(0.05, 0.42, 0.9, mat('#bfe0e6', { roughness: 0.1, metalness: 0.3 })), 1.64, 0.92, 0));
+      g.add(at(box(2.22, 0.14, 1.12, trim), -0.25, 0.5, 0));
+      for (const x of [-0.9, 1.15]) for (const z of [-0.5, 0.5]) { const w = cyl(0.24, 0.24, 0.16, mat(PAL.dark, { roughness: 0.8 }), 16); w.rotation.x = Math.PI / 2; g.add(at(w, x, 0.24, z)); }
+      const logo = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.75), new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.8 }));
+      logo.position.set(-0.25, 0.98, 0.556); g.add(logo);
+      g.position.set(-18, -0.1, HZ + 4.4);
+      this.root.add(g);
+      this._truck = g;
+    }
+    const t = this._truck;
+    t.visible = true;
+    this.tween(2.4, (k) => { const e = 1 - (1 - k) * (1 - k); t.position.x = -18 + e * 16.5; }, () => {
+      this.burst('bubble', new THREE.Vector3(-0.5, 1.8, HZ + 3.6), 6);
+      this.tween(1.6, () => {}, () => this.tween(2.2, (k) => { t.position.x = -1.5 + k * k * 19.5; }, () => { t.visible = false; this._truckBusy = false; }));
+    });
+  }
+
   cheer(id) { const c = this.chars[id]; if (c) c.cheer(); }
   rebuildCharacters() { for (const c of Object.values(this.chars)) this.root.remove(c.root); this.chars = {}; }
 

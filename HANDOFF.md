@@ -7,9 +7,10 @@ Downloads folder; it is not in the repo, so ask for it to be attached).
 ## Where things stand
 
 - **Built:** Era I, the Home Business (brief milestones 0, 1 and 2), plus a visual polish pass.
-  **Milestones 3 and 4 (the first store)** are built on branch `claude/tender-shannon-tt8lzl`
-  (based on `web`, not yet merged into `web`, so the live link still ends at the lease).
-- **Not built:** Era III, the Retail Chain (milestones 5 and 6).
+  Milestones 3 and 4 (the first store) are live on `web`. Milestones 5 and 6 (the chain) are on
+  branch `claude/tender-shannon-tt8lzl`; they reach the live link when that branch is pushed to
+  `web` (a fast-forward).
+- All six milestones of the brief are built.
 - **Live:** https://tombstonedadeadman.github.io/4-the-love-of-bubbles/ (GitHub Pages).
 - **Repo:** `TombstoneDaDeadman/4-the-love-of-bubbles`, public.
   - `web` branch = this browser game. Pages deploys from `web` / root. **Pushing to `web` updates
@@ -179,6 +180,30 @@ Defined in `js/data.js` and `js/sim/orders.js`; tune with `npm run balance`.
 - Balance (`npm run balance`, full-loop bot): ~$400-700/day profit, rating 3.5-3.9, cleanliness
   76-87. Brand Soul drifts down slowly if you only sell Classic formulas; that is intended.
 
+## Chapter Three: how the chain works (Milestones 5 and 6)
+
+- **Several stores without rewriting Era II** (`js/sim/chain.js`): the store being viewed or
+  ticked sits in the live slots `state.store`, `state.goods`, `state.actors`; every other store is
+  in `state.parked[id]`. `swapTo()` / `withStore()` move them. Data exists exactly once, so saves
+  stay plain JSON. `business.tick()` swaps Main Street in for company systems, then gives every
+  other store its turn, then restores the viewed store. Production, ingredients, the queue and
+  online orders are company-wide but physically at Main Street (`productionWork()` returns
+  nothing outside Main Street). UI code that must act on Main Street (online orders) wraps calls
+  in `withStore(s, 'main', ...)`.
+- **Save v4**: `current`, `parked`, `storeOrder`, `transfers`, store `id/name/location`, plus
+  `kitchen`, `regional`, `contracts`, `company` (filled by `withDefaults`).
+- **Ledger per store**: `transact()` tags each entry to the current store, or to `company` for
+  shared categories (`COMPANY_CATS` in economy.js). `closeDay()` keeps `byStore`; `storeProfit()`
+  columns always add up to the company's profit (tested).
+- **Unit conservation across the chain**: `companyUnits()` counts back stock in every store,
+  displays, baskets, staff arms, transfers on the road, the warehouse and orders being packed.
+  Soak tests assert it never changes except by making and selling.
+- **Brand Soul scaling**: per-shopper Soul effects divide by the number of shops (brief: "growth
+  itself is not negative").
+- **Balance**: three shops on two stoves sell out (ratings ~2.5; tested as the M5 squeeze). With
+  the kitchen (3 lines), trucks, managers and a regional manager: ratings 3.0-3.8, ~$450-850/day,
+  wholesale contracts completed. `npm run balance` prints both.
+
 ## Design decisions to confirm with the owner
 
 - Online orders keep coming in the store era at 55% of the home rate (brief lists both online and
@@ -186,6 +211,11 @@ Defined in `js/data.js` and `js/sim/orders.js`; tune with `npm run balance`.
 - Marketing campaigns also lift foot traffic at half strength (local marketing proper is M4).
 - Display restocking is automatic below a per-display level the player sets, plus a manual
   "Restock now". There is no fully manual (player-carries-stock) mode.
+- Online orders and online-order packing stay at Main Street even with a chain.
+- The central kitchen and warehouse are off-screen (panels, the delivery van in the street), not a
+  separate 3D location.
+- Wholesale contracts draw from the kitchen warehouse first, then Main Street's back stock.
+- The ending is a finale screen when every chain goal is met; play continues afterwards.
 - The brief's section 11 overlays (traffic heat map, low stock, staff coverage, satisfaction,
   cleanliness, profitability) are not built; they are not on the Milestone 4 list.
 - The checkout counter, back-room fixtures and walls are fixed in M3; build mode covers shelves,
@@ -195,9 +225,11 @@ Defined in `js/data.js` and `js/sim/orders.js`; tune with `npm run balance`.
 
 Follow the brief's milestone lists (sections 5, 6, 8 and 15). Suggested shape, not yet started:
 
-### Next: Era III, Milestone 5 (location choice, second store, store managers, separate inventory
-and KPIs, store switching, inventory transfers). `state.store` will need to become `state.stores[]`
-with a save migration; most store functions already take `state.store` in one place.
+### Next
+
+Every milestone in the brief is built. Sensible next steps: a human playthrough of all three
+chapters at normal speed, real-GPU performance profiling with a full chain, phone layouts, the
+section 11 overlays, and vendoring three.js and fonts for offline play.
 
 ### Era II: First Retail Store, Milestone 4 (done; original notes kept for context)
 

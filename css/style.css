@@ -449,3 +449,10 @@ table.pl td { text-align: right; padding: 3px 4px; border-top: 1px solid #f0e4d4
 table.pl td:first-child, table.pl th:first-child { text-align: left; }
 @media (max-width: 700px) { .locs { grid-template-columns: 1fr; } .storepill span[data-h] { display: none; } }
 .modal:has(.locs) { width: min(780px, 100%); }
+.pl-col .stack { width: 16px; display: flex; flex-direction: column; border-radius: 4px 4px 0 0; overflow: hidden; min-height: 3px; }
+.ch-r { background: #6dbf8b; } .ch-o { background: #8fb7e8; } .ch-w { background: #e2a93b; }
+.key.ch-r, .key.ch-o, .key.ch-w { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.finale-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.finale-stats div { background: #fbf4ea; border-radius: 12px; padding: 8px; text-align: center; }
+.finale-stats b { display: block; font-family: var(--display); font-size: 20px; }
+.finale-stats small { font-size: 11px; color: #9a8572; font-weight: 700; }

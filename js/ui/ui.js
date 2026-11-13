@@ -15,7 +15,8 @@ import { FURNITURE, STORE_GRID, STORE, STAFF_ROLES } from '../data.js';
 import { placeFurniture, moveFurniture, rotateFurniture, sellFurniture, assignSlot, spawnCustomer, getFurniture, setRefill, rushSlot, buyLoyalty } from '../sim/store.js';
 import { hireStaff, fireStaff, setStaffRole, staffRecord, setShift, trainStaff } from '../sim/staff.js';
 import { checkPlacement, footprint } from '../sim/path.js';
-import { storesPanel, locationCards } from './chainPanels.js';
+import { storesPanel, locationCards, kitchenPanel, companyPanel } from './chainPanels.js';
+import { buildKitchen, addLine, setKitchen, acceptContract, declineContract, hireRegional, dismissRegional, chainGoals } from '../sim/company.js';
 import { currentId, withStore, storeName, transferStock, expansionGoals, storeIds } from '../sim/chain.js';
 import { roleAllowed } from '../sim/staff.js';
 import { LOCATION_ORDER, LOCATIONS, CHAIN } from '../data.js';
@@ -34,13 +35,15 @@ const PANELS = { production: productionPanel, supplies: suppliesPanel, recipes: 
 // Era II: the shop floor comes first; Build and Staff unlock.
 const STORE_NAV = [
   { id: 'stores', label: 'Chain', ico: ICONS.chain, title: 'Your Shops', sub: 'Every location at a glance' },
+  { id: 'kitchen', label: 'Kitchen', ico: ICONS.kitchen, title: 'Central Kitchen', sub: 'Production lines, warehouse and deliveries', chain: true },
+  { id: 'company', label: 'Company', ico: ICONS.company, title: 'The Company', sub: 'Wholesale, regional management and the brand', chain: true },
   { id: 'store', label: 'Shop', ico: ICONS.store, title: 'Shop Floor', sub: 'Shoppers, displays and store rating' },
   { id: 'build', label: 'Build', ico: ICONS.build, title: 'Build Mode', sub: 'Place, move, rotate and sell fixtures' },
   { id: 'staff', label: 'Staff', ico: ICONS.staff, title: 'Staff', sub: 'Hire your team and set roles' },
   ...NAV.filter((n) => n.id !== 'staff').map((n) => (n.id === 'upgrades' ? { ...n, label: 'Equipment', title: 'Workroom Equipment', sub: 'Tools and storage for the back room' } : n)),
 ];
 const HIDDEN_PANELS = { display: { id: 'display', title: 'Display', sub: 'Choose what this display shows' } };
-const STORE_PANELS = { ...PANELS, staff: storeStaffPanel, stores: storesPanel };
+const STORE_PANELS = { ...PANELS, staff: storeStaffPanel, stores: storesPanel, kitchen: kitchenPanel, company: companyPanel };
 
 
 const STORE_TUTORIAL = [
@@ -131,6 +134,7 @@ export class GameUI {
     this.h = {};
     this.hud.querySelectorAll('[data-h]').forEach((n) => { this.h[n.dataset.h] = n; });
 
+    if (this.isStore && !this.game.state.milestone.chainReady) this.navList = this.navList.filter((n) => !n.chain);
     this.nav = el(`<nav class="nav">${this.navList.map((n) => `<button data-act="nav" data-id="${n.id}" class="${n.locked ? 'locked' : ''}" title="${n.title}"><span class="ico">${n.ico}</span>${n.label}</button>`).join('')}</nav>`);
     this.panel = el(`<aside class="panel" hidden><div class="panel-head"><div style="flex:1"><h2></h2><div class="sub"></div></div><button class="icon-btn" data-act="closepanel" title="Close">${ICONS.close}</button></div><div class="panel-body"></div></aside>`);
     this.orders = el(`<aside class="orders"><div class="orders-head"><h2>${this.isStore ? 'Online orders' : 'Orders'}</h2><span class="chip" data-h="ordcount"></span></div><div class="orders-auto" hidden style="padding:8px 14px 0"><span class="toggle" data-act="auto"><i></i>${this.isStore ? 'Auto-fulfill when in stock' : 'Helper auto-fulfills'}</span></div><div class="orders-list"></div></aside>`);
@@ -247,7 +251,7 @@ export class GameUI {
       case 'speed': this.setSpeed(Number(id)); break;
       case 'menu': sfx('open'); this.showMenu(); break;
       case 'goal': {
-        if (this.isStore && !s.milestone.chainReady && !this.isBranch) { this.goalOpen = !this.goalOpen; sfx('click'); this.refresh(true); break; }
+        if (this.isStore && ((!s.milestone.chainReady && !this.isBranch) || (s.milestone.chainReady && !s.milestone.finale && storeIds(s).length > 1))) { this.goalOpen = !this.goalOpen; sfx('click'); this.refresh(true); break; }
         if (this.isStore) { sfx('open'); this.openPanel('store'); break; }
         if (s.milestone.leaseSigned) { this.showMoveIn(); break; }
         if (s.milestone.outgrown && !s.milestone.leaseSigned) { this.showLease(); break; }
@@ -315,6 +319,13 @@ export class GameUI {
       case 's-hire': result(hireStaff(g, id, node.dataset.role), 'upgrade'); break;
       case 's-shift': result(setShift(g, id, node.dataset.shift)); break;
       case 'goto': sfx('open'); this.app.switchStore(id); break;
+      case 'kitchen': result(buildKitchen(g), 'fanfare'); break;
+      case 'kline': result(addLine(g), 'upgrade'); break;
+      case 'kset': result(setKitchen(g, id, id === 'forecast' || id === 'midday' ? node.dataset.v === '1' : Number(node.dataset.v))); break;
+      case 'waccept': result(acceptContract(g, id), 'coin'); break;
+      case 'wdecline': result(declineContract(g, id)); break;
+      case 'rhire': result(hireRegional(g), 'upgrade'); break;
+      case 'rfire': if (node.dataset.sure !== '1') { node.dataset.sure = '1'; node.textContent = 'Sure?'; sfx('click'); } else result(dismissRegional(g)); break;
       case 'pickloc': sfx('open'); this.showLocations(); break;
       case 'tfrom': this.transfer.from = id; this.transfer.items = {}; sfx('click'); this.refresh(true); break;
       case 'tto': this.transfer.to = id; sfx('click'); this.refresh(true); break;
@@ -420,6 +431,14 @@ export class GameUI {
     on('staffHired', (rec) => { this.toast('🙋', `${rec.name} joined the team`, `${STAFF_ROLES[rec.role].name} · ${money(rec.wage)}/day`, 'good'); const t = g.state.store.tutorial; if (!t.done && t.step === 0) this._storeTutAdvance(1); });
     on('furniturePlaced', () => w.burst('spark', 'door', 0));
     on('chainReady', () => { sfx('fanfare'); this.showChainReady(); });
+    on('kitchenBuilt', () => this.toast('🏭', 'The central kitchen is open', 'Trucks leave for every shop each morning', 'gold'));
+    on('wholesaleOffer', (c) => this.toast('🤝', `Wholesale offer from ${c.client}`, 'See it in Company', 'gold'));
+    on('wholesaleDone', (c) => { sfx('star'); this.toast('🤝', `Contract complete: ${c.client}`, 'Brand Soul +2', 'good'); });
+    on('wholesaleMissed', (c) => this.toast('📦', `Missed a delivery to ${c.client}`, `−${money(40)} and a little Brand Soul`, 'bad'));
+    on('wholesaleCancelled', (c) => { sfx('sad'); this.toast('💔', `${c.client} cancelled the contract`, 'Too many missed deliveries', 'bad'); });
+    on('regionalHired', (r) => this.toast('🧭', `${r.name} is your Regional Manager`, 'Every shop will run a little smoother', 'good'));
+    on('finale', () => { sfx('fanfare'); this.showFinale(); });
+    on('transferArrived', (t) => { if (t.to === currentId(g.state) && w.truck) w.truck(); });
     on('branchOpened', () => this.app.save(true));
     on('transferArrived', (t) => { if (!t.auto) { sfx('delivery'); this.toast('🚚', `Stock arrived at ${storeName(g.state, t.to)}`, `${Object.values(t.items).reduce((a, b) => a + b, 0)} units`, 'good'); } });
     on('lineUnlocked', ({ id }) => this.toast('🌟', `New product line: ${PRODUCTS[id].name}!`, 'Your first recipe is in the Recipe Book. Give it a display.', 'gold'));
@@ -577,6 +596,18 @@ export class GameUI {
     }, { confetti: true });
   }
 
+  showFinale() {
+    const s = this.game.state, n = esc(s.founder.name);
+    const shops = storeIds(s).length;
+    this.modal(`<div class="big-ico">💗</div><h2>4 The Love Of Bubbles is a <em>beloved brand</em></h2>
+      <p>It started with one pot on a kitchen stove and a shelf of jars. Now there are ${shops} shops, a kitchen across town, delivery trucks every morning, and spas and hotels that won't use anything else.</p>
+      <p>And through all of it, ${n}, it still feels handmade. Every jar, every bar, every bubble.</p>
+      <div class="finale-stats"><div><b>${s.time.day}</b><small>days in business</small></div><div><b>${money(s.stats.revenue)}</b><small>lifetime revenue</small></div><div><b>${s.stats.unitsSold.toLocaleString('en-US')}</b><small>products sold</small></div>
+        <div><b>${shops}</b><small>shops</small></div><div><b>${Math.round(s.soul)}</b><small>Brand Soul</small></div><div><b>★ ${s.reputation.toFixed(1)}</b><small>reputation</small></div></div>
+      <p class="muted">That's the story. The shops are yours to keep running for as long as you like.</p>
+      <div class="actions"><button class="btn lg teal" data-act="m-ok">Keep the bubbles going</button></div>`, { 'm-ok': () => { sfx('click'); this.closeModal(); } }, { confetti: true });
+  }
+
   showLocations() {
     const acts = { 'm-ok': () => { sfx('click'); this.closeModal(); } };
     for (const id of LOCATION_ORDER) acts[`m-open-${id}`] = () => { sfx('fanfare'); this.closeModal(); this.app.openBranch(id); };
@@ -669,6 +700,10 @@ export class GameUI {
       const goals = expansionGoals(s), pct = Math.round((goals.reduce((a, x) => a + x.pct, 0) / goals.length) * 100);
       gh = `<div class="head">${ICONS.chain} Road to a second shop <span class="pct">${pct}%  ${this.goalOpen ? '▾' : '▴'}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
       if (this.goalOpen) gh += `<div class="list">${goals.map((x) => `<div class="g ${x.done ? 'done' : ''}"><span>${x.done ? '✅' : '⬜'}</span><span>${x.label}</span><b>${x.money ? money(Math.min(x.value, x.target)) : x.decimals ? x.value.toFixed(1) : Math.min(x.value, x.target)} / ${x.money ? money(x.target) : x.target}</b>${x.hint && !x.done ? `<small>${x.hint}</small>` : ''}</div>`).join('')}</div>`;
+    } else if (this.isStore && s.milestone.chainReady && !s.milestone.finale && storeIds(s).length > 1) {
+      const goals = chainGoals(s), pct = Math.round((goals.reduce((a, x) => a + x.pct, 0) / goals.length) * 100);
+      gh = `<div class="head">${ICONS.company} ${esc(s.store.name || 'Main Street')} · the brand's big goals <span class="pct">${pct}%  ${this.goalOpen ? '▾' : '▴'}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+      if (this.goalOpen) gh += `<div class="list">${goals.map((x) => `<div class="g ${x.done ? 'done' : ''}"><span>${x.done ? '✅' : '⬜'}</span><span>${x.label}</span><b>${x.money ? money(Math.min(x.value, x.target)) : x.decimals ? x.value.toFixed(1) : Math.min(x.value, x.target)} / ${x.money ? money(x.target) : x.target}</b>${x.hint && !x.done ? `<small>${x.hint}</small>` : ''}</div>`).join('')}</div>`;
     } else if (this.isStore) {
       const st = s.store, t = st.today;
       gh = `<div class="head" style="white-space:nowrap">${ICONS.store} ${esc(st.name || 'Main Street')} <span class="stars-sm">★ ${st.reputation.toFixed(1)}</span> <span class="pct">${st.customers.length} inside · ${t.visitors} today${t.buyers + t.walkouts ? ` · ${Math.round((t.buyers / (t.buyers + t.walkouts)) * 100)}% bought` : ''}</span></div>`;
@@ -704,6 +739,7 @@ export class GameUI {
     this.root.querySelectorAll('[data-live]').forEach((n) => {
       const [kind, id] = n.dataset.live.split(':');
       if (kind === 'station') n.style.width = `${stationProgress(s.stations[Number(id)]) * 100}%`;
+      else if (kind === 'kline') { const l = s.kitchen && s.kitchen.lines[Number(id)]; if (l && l.job) n.style.width = `${(1 - l.job.remaining / l.job.time) * 100}%`; }
       else if (kind === 'transfer') { const t = (s.transfers || []).find((x) => x.id === id); if (t) n.style.width = `${(1 - t.eta / t.lead) * 100}%`; }
       else if (kind === 'delivery') { const d = s.deliveries.find((x) => x.id === id); if (d) n.style.width = `${(1 - d.eta / d.lead) * 100}%`; }
       else if (kind === 'campaign') {
@@ -732,7 +768,7 @@ queue ${s.queue.length} · stations ${s.stations.map((x) => x.phase).join('/')}
 actors ${s.actors.map((a) => `${a.id}:${a.task ? a.task.type + a.task.i : 'idle'}`).join(' ')}
 ${s.store ? `store: ${s.store.customers.length} shoppers (${s.store.customers.map((c) => c.state[0]).join('')}) · line ${s.store.queue.length} · till ${s.store.till || '-'} · ★${s.store.reputation} · layout v${s.store.layoutVer}
 ` : ''}goals ${Math.round(homeProgress(s) * 100)}% · fps ${this.app.fps ? this.app.fps.toFixed(0) : '-'}</pre>
-      <div class="btns"><button data-act="d-cash">+$500</button><button data-act="d-stock">+stock</button><button data-act="d-ing">+ingredients</button><button data-act="d-order">spawn order</button><button data-act="d-day">end day</button>${s.era === 'store' ? '<button data-act="d-shopper">+5 shoppers</button><button data-act="d-fill">fill displays</button>' : '<button data-act="d-goal">near milestone</button><button data-act="d-store">jump to store</button>'}</div>`;
+      <div class="btns"><button data-act="d-cash">+$500</button><button data-act="d-stock">+stock</button><button data-act="d-ing">+ingredients</button><button data-act="d-order">spawn order</button><button data-act="d-day">end day</button>${s.era === 'store' ? '<button data-act="d-shopper">+5 shoppers</button><button data-act="d-fill">fill displays</button><button data-act="d-chain">chain ready</button>' : '<button data-act="d-goal">near milestone</button><button data-act="d-store">jump to store</button>'}</div>`;
     if (html !== this.devHtml) { this.dev.innerHTML = html; this.devHtml = html; }
     this.modalActs = this.modalActs || {};
     if (!this._devActs) {
@@ -743,6 +779,7 @@ ${s.store ? `store: ${s.store.customers.length} shoppers (${s.store.customers.ma
         'd-order': () => spawnOrder(this.game),
         'd-shopper': () => { for (let i = 0; i < 5; i++) if (this.game.state.store.customers.length < STORE.maxCustomers) spawnCustomer(this.game); },
         'd-fill': () => { for (const fu of this.game.state.store.furniture) for (const sl of fu.slots) if (sl.skuId) sl.stock = FURNITURE[fu.type].slotCap; },
+        'd-chain': () => { const st = this.game.state; st.stats.revenue = Math.max(st.stats.revenue, 15000); st.milestone.storeDay = st.time.day - 6; st.store.reputation = Math.max(st.store.reputation, 4.0); transact(this.game, 8000, 'Developer', 'debug'); while (st.store.staff.length < 3 && st.store.candidates.length) hireStaff(this.game, st.store.candidates[0].id, 'associate'); },
         'd-store': () => { const st = this.game.state; st.milestone.outgrown = true; st.milestone.leaseSigned = true; for (const k of st.skus) st.goods[k.id] += 12; this.app.openStore(); },
         'd-day': () => { this.game.state.time.t = DAY_LENGTH - 0.5; },
         'd-goal': () => { const st = this.game.state; st.stats.revenue = HOME_GOALS.revenue - 20; st.stats.ordersFulfilled = HOME_GOALS.orders - 1; for (const id of ['mixer', 'pantry', 'goods', 'packing']) if (!st.upgrades[id]) { transact(this.game, UPGRADES[id].cost, 'Developer', 'debug'); buyUpgrade(this.game, id); } for (let i = 0; i < 25; i++) st.reviews.push({ stars: 5, customer: 'Test', product: '', text: 'debug', day: st.time.day }); st.reviews.splice(0, Math.max(0, st.reviews.length - 30)); st.reputation = 4.6; },
