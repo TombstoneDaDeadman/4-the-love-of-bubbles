@@ -3,6 +3,7 @@
 
 import { SAVE_VERSION } from '../data.js';
 import { newGameState } from './core.js';
+import { newStoreState } from './store.js';
 
 export const SAVE_KEY = 'ftlob.save';
 export const BACKUP_KEY = 'ftlob.save.backup';
@@ -14,6 +15,9 @@ export function serialize(state) {
 // Step-by-step migrations: MIGRATIONS[n] upgrades a version-n state to version n+1.
 const MIGRATIONS = {
   0: (st) => { st.settings = st.settings || { autoFulfill: false }; st.missedDemand = st.missedDemand || 0; return st; },
+  // v2 (Era II): the store did not exist yet. Players who already signed the lease stay in the
+  // kitchen until they choose to move in, so they still get the opening moment.
+  1: (st) => { st.store = null; st.era = 'home'; st.milestone = { storeOpened: false, storeDay: 0, ...(st.milestone || {}) }; return st; },
 };
 
 // Fill in any keys a save is missing (older or partially corrupt optional data) from a fresh state.
@@ -21,11 +25,16 @@ function withDefaults(st) {
   const fresh = newGameState(st.founder, st.seed || 1);
   for (const k of Object.keys(fresh)) {
     if (st[k] === undefined || st[k] === null) st[k] = fresh[k];
-    else if (typeof fresh[k] === 'object' && !Array.isArray(fresh[k])) {
+    else if (fresh[k] && typeof fresh[k] === 'object' && !Array.isArray(fresh[k])) {
       for (const k2 of Object.keys(fresh[k])) if (st[k][k2] === undefined) st[k][k2] = fresh[k][k2];
     }
   }
   for (const sku of st.skus) if (st.goods[sku.id] === undefined) st.goods[sku.id] = 0;
+  if (st.store) {
+    const fs = newStoreState();
+    for (const k of Object.keys(fs)) if (st.store[k] === undefined || st.store[k] === null) st.store[k] = fs[k];
+    if (st.era !== 'store') st.era = 'store';
+  }
   return st;
 }
 

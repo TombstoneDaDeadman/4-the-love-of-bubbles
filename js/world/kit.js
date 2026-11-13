@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const matCache = new Map();
 export function mat(color, opts = {}) {
@@ -330,4 +331,73 @@ export function plant(scale = 1) {
 export function setShadows(obj, cast = true, receive = true) {
   obj.traverse((o) => { if (o.isMesh) { o.castShadow = cast; o.receiveShadow = receive; } });
   return obj;
+}
+
+// ---- Draw-call reduction ---------------------------------------------------------
+
+function normalised(geo, matrix) {
+  let g = geo.index ? geo.toNonIndexed() : geo.clone();
+  for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
+  if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  if (!g.attributes.normal) g.computeVertexNormals();
+  g.morphAttributes = {};
+  g.applyMatrix4(matrix);
+  return g;
+}
+
+function mergeInto(target, entries) {
+  const groups = new Map();
+  for (const e of entries) {
+    const key = `${e.mesh.material.uuid}|${e.mesh.castShadow}|${e.mesh.receiveShadow}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2 && !list[0].moved) continue;
+    const merged = mergeGeometries(list.map((e) => normalised(e.mesh.geometry, e.matrix)), false);
+    if (!merged) continue;
+    const m = new THREE.Mesh(merged, list[0].mesh.material);
+    m.castShadow = list[0].mesh.castShadow; m.receiveShadow = list[0].mesh.receiveShadow;
+    m.userData.merged = true;
+    for (const e of list) e.mesh.parent.remove(e.mesh);
+    target.add(m);
+  }
+}
+
+// Bake every mesh under a static group into one mesh per material. For furniture and stocked
+// display slots, which never animate internally.
+export function compactStatic(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const entries = [];
+  group.traverse((o) => {
+    if (o.isMesh && !o.isSprite && !o.userData.keep && o.material && !Array.isArray(o.material)) {
+      entries.push({ mesh: o, matrix: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld), moved: true });
+    }
+  });
+  if (entries.length > 1) mergeInto(group, entries);
+  // drop empty sub-groups
+  const empty = [];
+  group.traverse((o) => { if (o !== group && !o.isMesh && o.children.length === 0 && o.type === 'Group') empty.push(o); });
+  for (const o of empty) o.parent.remove(o);
+  return group;
+}
+
+// Merge the leaf meshes directly under each node (by material), keeping the node hierarchy so
+// animated joints still move. Used for characters.
+export function compactChildren(root) {
+  const nodes = [];
+  root.traverse((o) => { if (!o.isMesh) nodes.push(o); });
+  for (const n of nodes) {
+    const leaves = n.children.filter((c) => c.isMesh && c.children.length === 0 && !c.userData.keep && !Array.isArray(c.material));
+    if (leaves.length < 2) continue;
+    for (const l of leaves) l.updateMatrix();
+    mergeInto(n, leaves.map((l) => ({ mesh: l, matrix: l.matrix.clone() })));
+  }
+  return root;
+}
+
+// Free GPU memory held by merged geometry under an object.
+export function disposeMerged(obj) {
+  obj.traverse((o) => { if (o.isMesh && o.userData.merged) o.geometry.dispose(); });
 }

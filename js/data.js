@@ -1,7 +1,7 @@
 // Static game data. Nothing in this file is mutated at runtime.
 // (Mirrors the brief's "ScriptableObject" layer: definitions here, live state in sim/state.js.)
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 // One business day (08:00 -> 20:00) lasts DAY_LENGTH sim-seconds at 1x speed.
 export const DAY_LENGTH = 240;
@@ -128,4 +128,129 @@ export const FOUNDER_OPTIONS = {
   hairColor: ['#1c1412', '#3b2416', '#6a3e1f', '#a8672e', '#d9b36a', '#8a8f98', '#b23a48'],
   hairStyle: ['bun', 'afro', 'long', 'bob', 'braids', 'short'],
   outfit: ['#e98fa5', '#7fc7c0', '#b39ddb', '#f2b866', '#8fb7e8', '#f4f0e8'],
+};
+
+// ============================================================================
+// Era II: the first retail store (Milestone 3)
+// ============================================================================
+
+// The store is laid out on a 0.5 m grid. Columns run along x, rows along z.
+//   rows 0-5   back room (production, pantry, back stock, packing)
+//   row  6     half-height partition wall, doorway in the middle
+//   rows 7-21  sales floor (where displays can be built)
+//   row  22    shop front: big windows and the entrance
+//   rows 23-26 the sidewalk outside
+export const STORE_GRID = { cell: 0.5, x0: -7, z0: -5.5, cols: 28, rows: 27 };
+export const STORE_ROWS = { backRoom: [0, 5], partition: 6, floor: [7, 21], front: 22, street: [23, 26] };
+export const STORE_DOORS = { partition: [13, 14], entrance: [12, 15] };
+
+// Where actors stand to use each fixed fixture in the store (metres).
+export const STORE_POINTS = {
+  station0: { x: -5.0, z: -4.55, face: Math.PI },
+  station1: { x: -3.3, z: -4.55, face: Math.PI },
+  pantry:   { x: -6.1, z: -3.6, face: -Math.PI / 2 },
+  shelf:    { x: 4.6, z: -4.55, face: Math.PI },   // back-stock shelving
+  packing:  { x: -0.25, z: -4.25, face: Math.PI },
+  register: { x: 4.25, z: 0.75, face: 0 },          // behind the till
+  rest:     { x: -1.6, z: -3.6, face: 0.6 },
+  rest2:    { x: 2.2, z: -3.4, face: -0.4 },
+  floor:    { x: -0.6, z: 0.5, face: 0.3 },        // where an idle associate waits
+  backdoor: { x: 0, z: -2.25, face: 0 },
+  inside:   { x: 0, z: 4.6, face: Math.PI },         // just inside the entrance
+  outside:  { x: 0, z: 6.6, face: Math.PI },
+  streetL:  { x: -6.9, z: 7.3, face: Math.PI / 2 },
+  streetR:  { x: 6.9, z: 7.3, face: -Math.PI / 2 },
+};
+
+// Fixed fixtures occupy cells [i0, i1] x [j0, j1] (inclusive). Not movable in Milestone 3.
+export const STORE_FIXED = [
+  { id: 'stations', cells: [1, 8, 0, 0] },
+  { id: 'pantry',   cells: [0, 0, 2, 5] },
+  { id: 'backstock', cells: [17, 25, 0, 0] },
+  { id: 'packing',  cells: [12, 14, 0, 1] },
+  { id: 'desk',     cells: [26, 27, 3, 5] },
+  { id: 'counter',  cells: [19, 23, 13, 13] },
+];
+// Walkable cells that must stay clear of furniture: the entrance, the back-room doorway,
+// the cashier's spot and the checkout queue lane.
+export const STORE_RESERVED = [
+  [11, 16, 17, 21],  // entrance approach
+  [12, 15, 7, 8],    // back-room doorway approach
+  [19, 23, 12, 12],  // behind the till
+  [20, 22, 14, 21],  // checkout queue lane
+];
+// Customers line up here, first place first.
+export const QUEUE_CELLS = [[21, 14], [21, 15], [21, 16], [21, 17], [21, 18], [21, 19], [21, 20], [21, 21]];
+
+// Build-mode catalogue. Footprints are in cells at rotation 0 (front faces +z).
+export const FURNITURE = {
+  shelf: { id: 'shelf', name: 'Wooden Wall Shelf', cost: 160, w: 4, d: 2, slots: 2, slotCap: 12, visibility: 1.0, appeal: 1, icon: '🗄️', desc: 'Three tiers, two products. The workhorse of the shop floor.' },
+  table: { id: 'table', name: 'Round Display Table', cost: 120, w: 3, d: 3, slots: 1, slotCap: 10, visibility: 1.6, appeal: 3, icon: '🪵', desc: 'One product, beautifully presented. Shoppers notice it first and buy on impulse.' },
+  plant: { id: 'plant', name: 'Potted Fig', cost: 35, w: 2, d: 2, slots: 0, slotCap: 0, visibility: 0, appeal: 2, icon: '🪴', desc: 'Greenery makes the shop feel calm and handmade.' },
+};
+export const FURNITURE_ORDER = ['shelf', 'table', 'plant'];
+export const SELL_BACK = 0.5;
+
+// The layout the store opens with.
+export const STARTER_LAYOUT = [
+  { type: 'shelf', i: 0, j: 9, rot: 1 },
+  { type: 'shelf', i: 0, j: 14, rot: 1 },
+  { type: 'shelf', i: 4, j: 7, rot: 0 },
+  { type: 'shelf', i: 26, j: 7, rot: 3 },
+  { type: 'table', i: 8, j: 12, rot: 0 },
+  { type: 'plant', i: 0, j: 19, rot: 0 },
+  { type: 'plant', i: 25, j: 19, rot: 0 },
+];
+
+export const STORE = {
+  maxCustomers: 22,          // shoppers inside at once (performance cap for the prototype)
+  spawnInterval: 5.2,        // sim-seconds between arrivals at a 1.0 traffic multiplier
+  openUntil: 0.94,           // fraction of the day after which nobody new walks in
+  rent: 55,                  // per day
+  utilities: 14,             // per day
+  goodsCap: 120,             // back-stock storage
+  ingredientCap: 200,
+  onlineShare: 0.55,         // online orders keep coming, at this share of the home-era rate
+  restockBelow: 0.5,         // staff restock a display once it falls under half full
+  walkSpeed: 1.6,            // customers, metres per sim-second
+  staffSpeed: 1.9,
+  maxStaff: 4,
+  hireFee: 40,
+};
+
+// Brief §5 customer archetypes. Milestone 3 uses four; the rest arrive with Milestone 4.
+//   products: how much each product family appeals; tier: preferred formula tier (0-2)
+//   sens: price sensitivity (higher = put off sooner by high prices)
+export const ARCHETYPES = {
+  regular:  { id: 'regular',  name: 'Loyal Regular',              weight: 0.3,  budget: [20, 36], patience: [70, 100], wants: [1, 2], products: { butter: 1, soap: 1.2, scrub: 1 }, tier: 0, sens: 0.6, note: 'Comes back for the staples when they are in stock.' },
+  value:    { id: 'value',    name: 'Value Shopper',              weight: 0.3,  budget: [10, 22], patience: [45, 70],  wants: [1, 2], products: { butter: 0.7, soap: 1.4, scrub: 1 }, tier: 0, sens: 1.6, note: 'Hunts for fair prices and affordable staples.' },
+  natural:  { id: 'natural',  name: 'Natural-Ingredient Shopper', weight: 0.25, budget: [24, 46], patience: [55, 85],  wants: [1, 3], products: { butter: 1.1, soap: 1, scrub: 1 },   tier: 1, sens: 0.8, note: 'Wants botanical, quality formulas.' },
+  skincare: { id: 'skincare', name: 'Skincare Enthusiast',        weight: 0.15, budget: [30, 64], patience: [60, 90],  wants: [1, 3], products: { butter: 1.4, soap: 0.6, scrub: 1.2 }, tier: 2, sens: 0.5, note: 'Pays for premium formulas with great reviews.' },
+};
+export const ARCHETYPE_ORDER = ['regular', 'value', 'natural', 'skincare'];
+
+// Basic staff (Milestone 3). Schedules and training arrive with Milestone 4.
+export const STAFF_ROLES = {
+  cashier:   { id: 'cashier',   name: 'Cashier',         wage: 42, icon: '🧾', desc: 'Works the till so shoppers never wait for you to come out of the back room.' },
+  associate: { id: 'associate', name: 'Sales Associate', wage: 38, icon: '🛍️', desc: 'Restocks the displays from back stock and helps shoppers find what they want.' },
+};
+export const STAFF_ROLE_ORDER = ['cashier', 'associate'];
+
+export const STAFF_NAMES = ['Aaliyah', 'Bree', 'Camille', 'Dante', 'Esme', 'Felix', 'Gia', 'Hector', 'Ines', 'Jamal', 'Kenji', 'Lena', 'Marisol', 'Nico', 'Omar', 'Paloma', 'Rhea', 'Simone', 'Tobi', 'Valentina', 'Wes', 'Yara', 'Zuri'];
+
+// Character looks for shoppers and staff (indices into these lists are saved, not colours).
+export const PEOPLE = {
+  skin: ['#f6d7c0', '#eabf9f', '#d49b73', '#b97a50', '#8c5a3a', '#5e3b26'],
+  hair: ['#1c1412', '#3b2416', '#6a3e1f', '#a8672e', '#d9b36a', '#8a8f98', '#2b2b33'],
+  styles: ['bun', 'afro', 'long', 'bob', 'braids', 'short'],
+  tops: ['#e98fa5', '#7fc7c0', '#b39ddb', '#f2b866', '#8fb7e8', '#f4f0e8', '#c9e4a8', '#e8a87c', '#9fb4c7', '#d6a2c8'],
+  pants: ['#44506b', '#6b5a4a', '#2f3640', '#8a7a6a', '#5a6b7d', '#3d4a3d'],
+};
+
+export const STORE_REVIEW_TEXT = {
+  5: ['The shop smells like heaven. I left with a full bag!', 'Gorgeous little store and the staff were so kind.', 'Found exactly what I wanted. Will be back every month.', 'Everything is handmade and you can tell.'],
+  4: ['Lovely shop, great products.', 'Nice selection and a quick checkout.', 'Really pretty displays. Bought a gift.'],
+  3: ['Nice store, but they were out of what I came for.', 'Good products, a bit of a wait at the till.', 'Pretty, but a little pricey.'],
+  2: ['Waited ages to pay.', 'Half the shelves were empty.', 'Too expensive for me.'],
+  1: ['Gave up in the checkout line.', 'Nothing I wanted was in stock.'],
 };

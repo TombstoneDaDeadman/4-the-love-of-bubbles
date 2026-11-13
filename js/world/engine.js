@@ -56,7 +56,8 @@ export class Engine {
     this.bounds = { x: 3.5, z: 2.8, minDist: 6, maxDist: 21 };
     this.interactables = [];
     this.raycaster = new THREE.Raycaster();
-    this.onHover = null; this.onClick = null;
+    this.onHover = null; this.onClick = null; this.onRightClick = null;
+    this._ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.enabled = true;
     this.keys = new Set();
     this.quality = 'high';
@@ -147,6 +148,7 @@ export class Engine {
       pinch.delete(e.pointerId);
       if (pinch.size < 2) pinchDist = 0;
       if (down && !dragging && down.button === 0 && this.onClick) this.onClick(this.pick(e.clientX, e.clientY), e);
+      if (down && !dragging && down.button === 2 && this.onRightClick) this.onRightClick(e);
       down = null; dragging = false; c.style.cursor = 'grab';
     };
     c.addEventListener('pointerup', up);
@@ -180,6 +182,25 @@ export class Engine {
     this.raycaster.setFromCamera(v, this.camera);
     const hit = this.raycaster.intersectObjects(this.interactables, false)[0];
     return hit ? hit.object.userData.interact : null;
+  }
+
+  // Where the pointer meets the floor (y = 0), in world metres.
+  groundPoint(clientX, clientY) {
+    const r = this.canvas.getBoundingClientRect();
+    const v = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(v, this.camera);
+    const p = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(this._ground, p) ? { x: p.x, z: p.z } : null;
+  }
+
+  // Each world sets how far the camera may roam and how much the sun's shadow must cover.
+  configure({ bounds, shadow }) {
+    if (bounds) Object.assign(this.bounds, bounds);
+    if (shadow) {
+      const sc = this.sun.shadow.camera;
+      sc.left = -shadow; sc.right = shadow; sc.top = shadow; sc.bottom = -shadow; sc.far = shadow * 4;
+      sc.updateProjectionMatrix();
+    }
   }
 
   // world position -> CSS pixels

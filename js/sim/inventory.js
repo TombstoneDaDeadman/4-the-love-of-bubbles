@@ -1,14 +1,15 @@
 // InventoryService + RecipeService: ingredient and finished-goods quantities, supply orders,
 // recipe maths. Quantities can never go negative: every removal is checked first.
 
-import { INGREDIENTS, PRODUCTS, TIERS, BASE_INGREDIENT_CAP, BASE_GOODS_CAP, VARIANT_COST, MAX_SKUS_HOME, SCENTS } from '../data.js';
+import { INGREDIENTS, PRODUCTS, TIERS, BASE_INGREDIENT_CAP, BASE_GOODS_CAP, VARIANT_COST, MAX_SKUS_HOME, SCENTS, STORE } from '../data.js';
 import { transact, canAfford } from './economy.js';
 import { makeSku } from './core.js';
 
 const sum = (obj) => Object.values(obj).reduce((a, b) => a + b, 0);
 
-export function ingredientCap(state) { return BASE_INGREDIENT_CAP + (state.upgrades.pantry ? 100 : 0); }
-export function goodsCap(state) { return BASE_GOODS_CAP + (state.upgrades.goods ? 50 : 0); }
+// The store's back room has more room than the kitchen; the home upgrades still add to it.
+export function ingredientCap(state) { return (state.era === 'store' ? STORE.ingredientCap : BASE_INGREDIENT_CAP) + (state.upgrades.pantry ? 100 : 0); }
+export function goodsCap(state) { return (state.era === 'store' ? STORE.goodsCap : BASE_GOODS_CAP) + (state.upgrades.goods ? 50 : 0); }
 export function ingredientTotal(state) { return sum(state.ingredients); }
 export function incomingTotal(state) { return state.deliveries.reduce((a, d) => a + sum(d.items), 0); }
 export function goodsTotal(state) { return sum(state.goods); }

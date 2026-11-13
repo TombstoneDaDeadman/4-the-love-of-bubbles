@@ -144,6 +144,7 @@ export function recipesPanel(s, ui) {
 export function upgradesPanel(s) {
   let out = `<div class="muted" style="padding:0 4px">Reinvest your profits. Every upgrade shows up in the workshop.</div>`;
   for (const id of UPGRADE_ORDER) {
+    if (id === 'helper' && s.era === 'store') continue; // staff are hired in the Staff panel now
     const u = UPGRADES[id], owned = !!s.upgrades[id];
     out += `<div class="card ${owned ? 'owned' : ''}"><div class="row"><span class="swatch" style="background:${owned ? '#c6e3cf' : '#f6e4c4'}">${u.icon}</span><div class="grow"><div class="title">${u.name}</div><div class="muted">${u.desc}</div></div></div>
       <div class="row"><span class="chip teal grow" style="justify-content:center">${u.effect}</span>
@@ -157,10 +158,10 @@ export function upgradesPanel(s) {
 export function marketingPanel(s) {
   const d = demandBreakdown(s);
   const f = (v) => `×${v.toFixed(2)}`;
-  let out = `<div class="card"><div class="row"><div class="grow"><div class="title">Order demand</div><div class="muted">How often new orders arrive, and why.</div></div><span class="chip ${d.total >= 1.3 ? 'ok' : 'gold'}" style="font-size:15px">${f(d.total)}</span></div>
+  let out = `<div class="card"><div class="row"><div class="grow"><div class="title">${s.era === 'store' ? 'Online order demand' : 'Order demand'}</div><div class="muted">${s.era === 'store' ? 'Most local customers now visit the shop; online orders keep coming. Campaigns also bring walk-in shoppers.' : 'How often new orders arrive, and why.'}</div></div><span class="chip ${d.total >= 1.3 ? 'ok' : 'gold'}" style="font-size:15px">${f(d.total)}</span></div>
     <div class="kv"><span>⭐ Reputation</span><b>${f(d.rep)}</b></div><div class="kv"><span>💗 Brand Soul</span><b>${f(d.soul)}</b></div>
     <div class="kv"><span>📈 Word of mouth</span><b>${f(d.growth)}</b></div><div class="kv"><span>📣 Campaigns</span><b>${f(d.marketing)}</b></div>
-    <div class="kv"><span>🏷️ Pricing</span><b class="${d.price < 0.9 ? 'neg' : ''}">${f(d.price)}</b></div><div class="kv"><span>🧴 Product range</span><b>${f(d.range)}</b></div></div>
+    <div class="kv"><span>🏷️ Pricing</span><b class="${d.price < 0.9 ? 'neg' : ''}">${f(d.price)}</b></div><div class="kv"><span>🧴 Product range</span><b>${f(d.range)}</b></div>${d.channel < 1 ? `<div class="kv"><span>🏪 Shop takes local trade</span><b>${f(d.channel)}</b></div>` : ''}</div>
     <div class="sect">Campaigns</div>`;
   for (const id of CAMPAIGN_ORDER) {
     const c = CAMPAIGNS[id];
@@ -181,7 +182,12 @@ export function reportsPanel(s) {
   const L = s.ledger, t = L.today;
   const profit = todayProfit(s);
   const margin = t.revenue > 0 ? Math.round((profit / t.revenue) * 100) : 0;
-  let out = `<div class="sect">Today · Day ${s.time.day}</div><div class="card">
+  let out = '';
+  if (s.store) {
+    const st = s.store, td = st.today;
+    out += `<div class="sect">Shop floor today</div><div class="card"><div class="kv"><span>Store sales</span><b class="pos">${money(td.revenue, true)}</b></div><div class="kv"><span>Visitors · bought · left</span><b>${td.visitors} · ${td.buyers} · ${td.walkouts}</b></div><div class="kv"><span>Units sold in store</span><b>${td.items}</b></div><div class="kv"><span>Store rating</span><b>★ ${st.reputation.toFixed(1)}</b></div></div>`;
+  }
+  out += `<div class="sect">Today · Day ${s.time.day}</div><div class="card">
     <div class="kv"><span>Revenue</span><b class="pos">${money(t.revenue, true)}</b></div><div class="kv"><span>Expenses</span><b class="neg">${money(-t.expenses, true)}</b></div>
     <div class="kv total"><span>Net profit${t.revenue > 0 ? ` · ${margin}% margin` : ''}</span><b class="${profit >= 0 ? 'pos' : 'neg'}">${money(profit, true)}</b></div></div>`;
   const days = L.days.slice(-8);

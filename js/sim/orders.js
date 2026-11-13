@@ -1,6 +1,6 @@
 // OrderService (home-era customer orders) + ReputationService (reviews, reputation, Brand Soul).
 
-import { CUSTOMER_NAMES, BIG_ORDER_NAMES, REVIEW_TEXT, CAMPAIGNS } from '../data.js';
+import { CUSTOMER_NAMES, BIG_ORDER_NAMES, REVIEW_TEXT, CAMPAIGNS, STORE } from '../data.js';
 import { transact } from './economy.js';
 import { getSku, removeGoods, priceAppeal, refPrice, skuQuality } from './inventory.js';
 
@@ -23,7 +23,9 @@ export function demandBreakdown(state) {
   const appeals = listed.map(priceAppeal);
   const price = appeals.length ? appeals.reduce((a, b) => a + b, 0) / appeals.length : 1;
   const range = 1 + Math.min(0.3, (listed.length - 3) * 0.05);
-  return { rep, soul, growth, marketing, price, range, total: rep * soul * growth * marketing * price * range };
+  // Once the store is open most local customers walk in instead; online orders keep coming.
+  const channel = state.era === 'store' ? STORE.onlineShare : 1;
+  return { rep, soul, growth, marketing, price, range, channel, total: rep * soul * growth * marketing * price * range * channel };
 }
 
 // ---- Orders ---------------------------------------------------------------
@@ -149,7 +151,7 @@ export function tickOrders(game, dt) {
     else spawnOrder(game);
   }
   expireOrders(game);
-  if (s.settings.autoFulfill && s.upgrades.helper) {
+  if (s.settings.autoFulfill && (s.upgrades.helper || s.era === 'store')) {
     const open = s.orders.filter((o) => o.status === 'open').sort((a, b) => a.deadline - b.deadline);
     for (const o of open) if (canFulfill(s, o)) fulfillOrder(game, o.id);
   }
@@ -157,15 +159,16 @@ export function tickOrders(game, dt) {
 
 // ---- Reputation -----------------------------------------------------------
 
-export function addReview(game, stars, order) {
+export function addReview(game, stars, order, texts = REVIEW_TEXT, source = 'online') {
   const s = game.state;
   const sku = order && order.lines[0] ? getSku(s, order.lines[0].skuId) : null;
   const review = {
     stars,
     customer: order ? order.customer : 'A customer',
     product: sku ? sku.name : '',
-    text: game.pick(REVIEW_TEXT[stars]),
+    text: game.pick(texts[stars]),
     day: s.time.day,
+    source,
   };
   if (order && stars >= 3) {
     for (const l of order.lines) {

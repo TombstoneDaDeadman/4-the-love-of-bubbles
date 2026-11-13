@@ -87,7 +87,8 @@ export function newGameState(founder = {}, seed = (Date.now() & 0x7fffffff)) {
     marketing: { active: [], cooldowns: {} },
     settings: { autoFulfill: false },
     actors: [newActor('founder', 'rest')],
-    milestone: { outgrown: false, leaseSigned: false },
+    milestone: { outgrown: false, leaseSigned: false, storeOpened: false, storeDay: 0 },
+    store: null, // Era II state, created by openStore()
     tutorial: { step: 0, done: false },
   };
   STARTER_SKUS.forEach((s, i) => {

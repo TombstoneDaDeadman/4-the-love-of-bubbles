@@ -3,7 +3,7 @@
 A warm, stylised 3D tycoon game about growing a handmade bath, body, skin and hair-care business,
 from a kitchen stovetop to a store of your own. It runs entirely in the browser.
 
-**Chapter One: The Home Business** is playable now.
+**Chapter One: The Home Business** and the first part of **Chapter Two: The First Store** are playable now.
 
 ## Play
 
@@ -16,7 +16,7 @@ npm start
 Then visit http://localhost:5173. No install step and no build step. The only external
 dependencies are three.js and two Google Fonts, loaded from a CDN, so you need to be online.
 
-If the repository has GitHub Pages enabled (Settings → Pages → Deploy from branch → `main` / root),
+If the repository has GitHub Pages enabled (Settings → Pages → Deploy from branch → `web` / root),
 the game is playable at `https://<user>.github.io/<repo>/`.
 
 ## How it plays
@@ -33,6 +33,26 @@ You are the founder. Everything is hands-on:
    and decide what to list. Quality drives reviews.
 6. **Marketing**: reels, flyers and ads raise demand. The panel explains exactly where demand comes from.
 7. **Outgrow the kitchen**: hit every goal and the boxes pile up until you can lease the first store.
+
+### Chapter Two: the store on Main Street
+
+Signing the lease moves the whole business into a corner shop. The stove, pantry and recipes go
+to the workroom in the back; the front is a shop floor you lay out yourself.
+
+1. **Shoppers walk in** with something in mind (Loyal Regulars, Value Shoppers, Natural-Ingredient
+   Shoppers, Skincare Enthusiasts), a budget and limited patience. They browse displays, pick
+   things up, queue at the till, pay and leave. Empty displays, high prices and long lines send
+   them home unhappy.
+2. **Displays**: click a shelf or table to choose what it shows. Display stock is separate from
+   back stock; someone has to carry units out of the workroom to refill it.
+3. **Staff**: hire a Cashier (works the till) and Sales Associates (restock displays, help
+   shoppers). Until then the founder leaves the workroom to ring up every sale. Wages, rent and
+   utilities are paid at closing time.
+4. **Build mode**: place, move, rotate and sell shelves, display tables and plants. Aisles, the
+   till line and both doorways are kept clear, and nothing can be placed where shoppers could not
+   reach it.
+5. **Store rating** comes from how each shopper felt on the way out, and drives foot traffic.
+   Online orders keep coming at a gentler pace and are packed in the workroom.
 
 Two long-term meters matter: **Reputation** (recent customer reviews) and **Brand Soul** (does the
 business still feel handmade, generous and reliable?).
@@ -51,6 +71,8 @@ business still feel handmade, generous and reliable?).
 | ` (backtick) | Developer diagnostics |
 
 Click the stove, pantry, shelves, packing table or laptop in the room to open the matching panel.
+In the store, click a display to choose its products, or the till for the shop-floor overview.
+In build mode, <kbd>R</kbd> rotates and <kbd>Esc</kbd> or right-click cancels a placement.
 
 The menu has a **Detailed graphics** switch (soft contact shadows and sharper rendering). The game
 turns it off by itself if the frame rate stays low. Music is off by default and can be turned on
@@ -68,7 +90,11 @@ js/sim/               the simulation. No DOM, no rendering, fully unit-tested
   inventory.js        ingredients, finished goods, supplies, recipe maths
   production.js       batch queue and workstation jobs
   orders.js           demand, customer orders, reviews, reputation, Brand Soul
-  workers.js          founder + helper task logic (walk, prep, stock, pack)
+  workers.js          shared task runner + home-era founder/helper tasks
+  store.js            Era II: store layout, build mode, displays, shoppers, checkout, store rating
+  staff.js            Era II: hiring, roles, wages, store-era founder/cashier/associate tasks
+  path.js             store grid, placement validation, A* pathfinding
+  people.js           generated shopper/staff looks and staff records
   business.js         upgrades, marketing, goals, the master tick / game clock
   save.js             versioned save/load, autosave, rolling backup, migrations
 js/world/             three.js presentation (reads state, never changes it)
@@ -76,10 +102,13 @@ js/world/             three.js presentation (reads state, never changes it)
   kit.js              materials, procedural textures, product mesh families
   character.js        procedural characters and animation library
   home.js             the home workshop scene
+  store.js            the Main Street store scene (pooled shoppers, merged meshes)
 js/ui/                HUD, panels, orders rail, tutorial, modals, diagnostics
+  storePanels.js      Era II panels: Build, Shop Floor, Display, Staff
   icons.js            hand-drawn SVG icon set and product silhouettes
 js/audio.js           synthesised sound effects and music (no audio files)
 tests/sim.test.mjs    economy, inventory, production, save and soak tests
+tests/store.test.mjs  store, build validation, pathfinding, recovery, staff, save and soak tests
 ```
 
 ## Tests
@@ -91,7 +120,11 @@ npm test
 Covers the brief's testing priorities: money can only move through the ledger, production consumes
 and produces exactly what the recipe says, inventory never goes negative, cancellation rules,
 save/load round-trips, save migration and backup recovery, and a soak test where a bot plays the
-whole home era to the first-store milestone. `npm run balance` prints the bot's day-by-day numbers.
+whole home era to the first-store milestone. The store tests add: every finished unit is accounted
+for (back stock, displays, baskets, staff arms, orders), shoppers never get stuck even while
+displays are moved and sold under them, staff recover when a restock target disappears, build
+placement is validated, and a bot runs the store for a week. `npm run balance` prints both bots'
+day-by-day numbers.
 
 **Production cancellation rule:** ingredients are taken when a batch is queued. Cancelling a queued
 batch refunds them in full. Cancelling a batch already on a workstation wastes them.
@@ -111,5 +144,8 @@ services (TimeService, EconomyService, InventoryService and so on) as modules un
 - [x] Milestone 0: foundation (clock, ledger, data, saves, diagnostics)
 - [x] Milestone 1: home business vertical slice
 - [x] Milestone 2: home business polish (founder, sound, tutorial, recipe book, marketing, balance)
-- [ ] Milestone 3 and 4: the first store (walk-in customers, shelves, checkout, staff, build mode)
+- [x] Milestone 3: first store prototype (store map, shoppers and pathfinding, displays, browsing and
+      buying, checkout queue, basic staff, store rating, simple build mode)
+- [ ] Milestone 4: first store full loop (restock rules, cleaning, schedules and training, more
+      archetypes, store design score, local marketing, more products, profitability reports)
 - [ ] Milestone 5 and 6: second store and chain management

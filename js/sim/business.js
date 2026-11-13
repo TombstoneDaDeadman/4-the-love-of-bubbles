@@ -1,12 +1,14 @@
 // Upgrades, marketing, progression goals, and the master simulation tick (TimeService).
 
-import { UPGRADES, CAMPAIGNS, HOME_GOALS, DAY_LENGTH, DAY_START_MIN, DAY_END_MIN, DAILY_UTILITIES } from '../data.js';
+import { UPGRADES, CAMPAIGNS, HOME_GOALS, DAY_LENGTH, DAY_START_MIN, DAY_END_MIN, DAILY_UTILITIES, STORE } from '../data.js';
 import { transact, forceExpense, closeDay } from './economy.js';
 import { tickDeliveries, goodsTotal, goodsCap } from './inventory.js';
 import { tickStations } from './production.js';
 import { tickOrders } from './orders.js';
 import { tickWorkers } from './workers.js';
 import { newActor } from './core.js';
+import { tickStore, closeStoreDay, refreshCandidates } from './store.js';
+import { tickStoreStaff, payWages } from './staff.js';
 
 // ---- Upgrades -------------------------------------------------------------
 
@@ -14,6 +16,7 @@ export function buyUpgrade(game, id) {
   const s = game.state, u = UPGRADES[id];
   if (!u) return { ok: false, reason: 'Unknown upgrade.' };
   if (s.upgrades[id]) return { ok: false, reason: 'Already owned.' };
+  if (id === 'helper' && s.era === 'store') return { ok: false, reason: 'Hire staff from the Staff panel instead.' };
   if (!transact(game, -u.cost, id === 'helper' ? 'Staff wages' : 'Equipment', u.name)) return { ok: false, reason: 'Not enough cash.' };
   s.upgrades[id] = true;
   if (id === 'station2') s.stations[1].unlocked = true;
@@ -95,9 +98,19 @@ export function clockLabel(state) {
 
 function endDay(game) {
   const s = game.state;
-  forceExpense(game, DAILY_UTILITIES + (s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
-  if (s.upgrades.helper) forceExpense(game, UPGRADES.helper.wage, 'Staff wages', 'Weekend helper');
+  let store = null;
+  if (s.era === 'store') {
+    forceExpense(game, STORE.rent, 'Rent / lease', 'Main Street storefront');
+    forceExpense(game, STORE.utilities + (s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
+    payWages(game);
+    store = closeStoreDay(s);
+    refreshCandidates(game);
+  } else {
+    forceExpense(game, DAILY_UTILITIES + (s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
+    if (s.upgrades.helper) forceExpense(game, UPGRADES.helper.wage, 'Staff wages', 'Weekend helper');
+  }
   const summary = closeDay(game);
+  if (store) summary.store = store;
   s.time.day += 1;
   s.time.t = 0;
   game.emit('dayEnd', summary);
@@ -118,7 +131,8 @@ export function tick(game, dtReal) {
     tickStations(game, dt);
     tickMarketing(s, dt);
     tickOrders(game, dt);
-    tickWorkers(game, dt);
+    if (s.era === 'store') { tickStore(game, dt); tickStoreStaff(game, dt); }
+    else tickWorkers(game, dt);
     tickProgression(game);
     if (s.time.t >= DAY_LENGTH) endDay(game);
   }

@@ -403,3 +403,16 @@ button:focus-visible, .toggle:focus-visible { outline: 3px solid rgba(79, 169, 1
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---- Era II: the store ---------------------------------------------------------- */
+.tip.bad { background: #b9475d; }
+.tip.bad::after { background: #b9475d; }
+.float.thought { font-family: var(--body); font-size: 14px; font-weight: 800; color: var(--ink); background: #fffaf2; padding: 4px 10px; border-radius: 14px; text-shadow: none; box-shadow: 0 4px 12px rgba(74, 55, 40, .18); animation-duration: 2.2s; }
+.float.thought.bad { color: #b9475d; }
+.card.clickable { cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.card.clickable:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(74, 55, 40, .12); }
+.card.build-live { border: 2px solid var(--teal); }
+.row.wrap { flex-wrap: wrap; }
+.panel kbd { font-size: 11px; padding: 1px 5px; }
+.goal .stars-sm { color: var(--gold); font-weight: 800; }
+.pick button .swatch.sm { width: 20px; height: 20px; vertical-align: middle; }

@@ -3,7 +3,7 @@
 // idle, walk, carry, work, reach, wave, plus blinking and a short "cheer" emote.
 
 import * as THREE from 'three';
-import { mat, sphere, cyl, box, at, PAL } from './kit.js';
+import { mat, sphere, cyl, box, at, PAL, compactChildren } from './kit.js';
 import { FOUNDER_OPTIONS } from '../data.js';
 
 const HEIGHT = 1.68;
@@ -227,6 +227,8 @@ export function createCharacter(opts = {}) {
 
   root.scale.setScalar(o.scale * (HEIGHT / 1.74));
   root.traverse((n) => { if (n.isMesh && n.castShadow !== false) n.castShadow = true; });
+  // Fewer draw calls: fuse the static pieces under each joint (a store holds 20+ people).
+  if (o.compact !== false) compactChildren(root);
 
   const pose = { hipL: 0, hipR: 0, kneeL: 0, kneeR: 0, shL: 0, shR: 0, shLz: 0, shRz: 0, elL: 0, elR: 0, lean: 0, bob: 0, headX: 0, headY: 0, twist: 0 };
   const cur = { ...pose };

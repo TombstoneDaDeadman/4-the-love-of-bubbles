@@ -3,6 +3,8 @@
 
 import { Engine } from './world/engine.js';
 import { HomeWorld } from './world/home.js';
+import { StoreWorld } from './world/store.js';
+import { openStore } from './sim/store.js';
 import { Game, newGameState } from './sim/core.js';
 import { tick } from './sim/business.js';
 import { saveGame, loadGame, hasSave, clearSave } from './sim/save.js';
@@ -23,6 +25,12 @@ const app = {
   savePrefs() { try { storage.setItem(PREFS_KEY, JSON.stringify({ music: audioSettings.music, sfx: audioSettings.sfx, gfx: app.engine.quality })); } catch (e) { /* ignore */ } },
   setQuality(q, save) { app.engine.setQuality(q); app.autoQuality = false; if (save) app.savePrefs(); },
   quitToTitle() { showTitle(); },
+  // Era switch: the whole business moves to Main Street.
+  openStore() {
+    const r = openStore(app.game);
+    if (!r.ok) { if (app.ui) app.ui.toast('⚠️', r.reason, '', 'bad'); return; }
+    startGame(app.game.state, { intro: true });
+  },
   // Diagnostics: fast-forward the simulation by a number of sim-seconds (ignores game speed).
   advance(seconds) { const t = app.game.state.time, sp = t.speed, p = t.paused; t.speed = 1; t.paused = false; for (let i = 0; i < seconds * 5; i++) tick(app.game, 0.2); t.speed = sp; t.paused = p; },
 };
@@ -49,7 +57,7 @@ function setWorld(state) {
   if (app.world) app.world.dispose();
   uiRoot.innerHTML = '';
   app.game = new Game(state);
-  app.world = new HomeWorld(app.engine, app.game);
+  app.world = state.era === 'store' ? new StoreWorld(app.engine, app.game) : new HomeWorld(app.engine, app.game);
 }
 
 // ---- Title ------------------------------------------------------------------
@@ -143,16 +151,34 @@ function showCreator() {
 
 // ---- Play ---------------------------------------------------------------------
 
-function startGame(state) {
+const STORE_VIEW = () => ({ x: 0.2, z: 0.6, dist: window.innerWidth < 900 ? 29 : 23, pitch: 0.78, yaw: 0.55 });
+
+function startGame(state, { intro = false } = {}) {
   state.time.paused = false;
   setWorld(state);
   app.mode = 'play';
   const eng = app.engine;
   eng.enabled = true;
-  Object.assign(eng.goal, { x: 0, z: 0.1, dist: window.innerWidth < 900 ? 19 : 15.5, pitch: 0.72, yaw: 0.62 });
+  if (state.era === 'store') Object.assign(eng.goal, STORE_VIEW());
+  else Object.assign(eng.goal, { x: 0, z: 0.1, dist: window.innerWidth < 900 ? 19 : 15.5, pitch: 0.72, yaw: 0.62 });
   app.ui = new GameUI(app);
   saveGame(storage, state);
-  if (state.time.day === 1 && state.time.t < 1 && !state.tutorial.done) {
+  if (intro) {
+    // Opening shot: stand on the sidewalk facing the new shop front, then rise over the roof.
+    Object.assign(eng.goal, { x: 0, z: 4.6, dist: 12, pitch: 0.2, yaw: 0 });
+    Object.assign(eng.cur, eng.goal);
+    app.world.facadeShot = true;
+    state.time.paused = true;
+    setTimeout(() => {
+      if (app.world.facadeShot === undefined) return;
+      app.world.facadeShot = false;
+      Object.assign(eng.goal, STORE_VIEW());
+      state.time.paused = false;
+      if (app.ui) { app.ui.toast('🏪', 'Open for business on Main Street!', 'Your first walk-in shoppers are on their way.', 'gold'); app.ui.refresh(true); }
+    }, 3400);
+  } else if (state.era === 'home' && state.milestone.leaseSigned) {
+    app.ui.showMoveIn();
+  } else if (state.time.day === 1 && state.time.t < 1 && !state.tutorial.done) {
     app.ui.toast('🫧', `Welcome, ${state.founder.name}!`, 'Your kitchen workshop is open.', 'gold');
   }
 }
