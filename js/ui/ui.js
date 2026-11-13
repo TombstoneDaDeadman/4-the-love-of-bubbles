@@ -15,6 +15,10 @@ import { FURNITURE, STORE_GRID, STORE, STAFF_ROLES } from '../data.js';
 import { placeFurniture, moveFurniture, rotateFurniture, sellFurniture, assignSlot, spawnCustomer, getFurniture, setRefill, rushSlot, buyLoyalty } from '../sim/store.js';
 import { hireStaff, fireStaff, setStaffRole, staffRecord, setShift, trainStaff } from '../sim/staff.js';
 import { checkPlacement, footprint } from '../sim/path.js';
+import { storesPanel, locationCards } from './chainPanels.js';
+import { currentId, withStore, storeName, transferStock, expansionGoals, storeIds } from '../sim/chain.js';
+import { roleAllowed } from '../sim/staff.js';
+import { LOCATION_ORDER, LOCATIONS, CHAIN } from '../data.js';
 
 const NAV = [
   { id: 'production', label: 'Production', ico: ICONS.production, title: 'Production', sub: 'Queue batches and watch your stations' },
@@ -29,13 +33,14 @@ const PANELS = { production: productionPanel, supplies: suppliesPanel, recipes: 
 
 // Era II: the shop floor comes first; Build and Staff unlock.
 const STORE_NAV = [
+  { id: 'stores', label: 'Chain', ico: ICONS.chain, title: 'Your Shops', sub: 'Every location at a glance' },
   { id: 'store', label: 'Shop', ico: ICONS.store, title: 'Shop Floor', sub: 'Shoppers, displays and store rating' },
   { id: 'build', label: 'Build', ico: ICONS.build, title: 'Build Mode', sub: 'Place, move, rotate and sell fixtures' },
   { id: 'staff', label: 'Staff', ico: ICONS.staff, title: 'Staff', sub: 'Hire your team and set roles' },
   ...NAV.filter((n) => n.id !== 'staff').map((n) => (n.id === 'upgrades' ? { ...n, label: 'Equipment', title: 'Workroom Equipment', sub: 'Tools and storage for the back room' } : n)),
 ];
 const HIDDEN_PANELS = { display: { id: 'display', title: 'Display', sub: 'Choose what this display shows' } };
-const STORE_PANELS = { ...PANELS, staff: storeStaffPanel };
+const STORE_PANELS = { ...PANELS, staff: storeStaffPanel, stores: storesPanel };
 
 
 const STORE_TUTORIAL = [
@@ -96,6 +101,8 @@ export class GameUI {
     this.fixtures = this.isStore ? STORE_FIXTURES : FIXTURES;
     this.bm = { placing: null, moving: null, rot: 0, i: 0, j: 0, ok: false, selected: null, reason: '' };
     this.inspectId = null;
+    this.transfer = { from: 'main', to: null, items: {} };
+    this.isBranch = this.isStore && currentId(this.game.state) !== 'main';
     this._build();
     this._bindGame();
     this._onKey = (e) => this._key(e);
@@ -108,6 +115,7 @@ export class GameUI {
     const r = this.root;
     this.hud = el(`<div class="hud">
       <div class="brand"><div class="brand-mark">4</div><div class="brand-name"><small>the love of</small><b>Bubbles</b></div></div>
+      ${this.isStore ? `<button class="storepill" data-act="nav" data-id="stores" title="Your shops"><span class="ico">${ICONS.store}</span><span data-h="storename"></span></button>` : ''}
       <div class="stat cash" data-h="cashbox" title="Cash on hand"><div class="ico">${ICONS.cash}</div><div><div class="lbl">Cash</div><div class="val" data-h="cash"></div></div></div>
       <div class="stat profit" title="Today's revenue minus today's expenses"><div class="ico" style="background:var(--green-soft)">${ICONS.profit}</div><div><div class="lbl">Today's profit</div><div class="val" data-h="profit"></div></div></div>
       <div class="stat" title="Reputation: the average of your recent customer reviews"><div class="ico">${ICONS.star}</div><div><div class="lbl">Reputation</div><div class="val"><span data-h="rep"></span> <span class="stars">★★★★★<i data-h="repstars">★★★★★</i></span></div></div></div>
@@ -239,6 +247,7 @@ export class GameUI {
       case 'speed': this.setSpeed(Number(id)); break;
       case 'menu': sfx('open'); this.showMenu(); break;
       case 'goal': {
+        if (this.isStore && !s.milestone.chainReady && !this.isBranch) { this.goalOpen = !this.goalOpen; sfx('click'); this.refresh(true); break; }
         if (this.isStore) { sfx('open'); this.openPanel('store'); break; }
         if (s.milestone.leaseSigned) { this.showMoveIn(); break; }
         if (s.milestone.outgrown && !s.milestone.leaseSigned) { this.showLease(); break; }
@@ -290,7 +299,7 @@ export class GameUI {
       case 'variant': result(createVariant(g, this.variant.productId, this.variant.scentId, this.variant.tier), 'upgrade'); break;
       case 'upgrade': result(buyUpgrade(g, id), 'upgrade'); break;
       case 'campaign': result(startCampaign(g, id), 'star'); break;
-      case 'fulfill': result(fulfillOrder(g, id), 'pop'); break;
+      case 'fulfill': result(this.isStore ? withStore(s, 'main', () => fulfillOrder(g, id)) : fulfillOrder(g, id), 'pop'); break;
       case 'auto': s.settings.autoFulfill = !s.settings.autoFulfill; sfx('click'); this.refresh(true); break;
       case 'skiptut': this._tut().done = true; sfx('click'); this.refresh(true); break;
       case 'nexttut': if (this.isStore) this._storeTutAdvance(s.store.tutorial.step + 1); else this._tutAdvance(s.tutorial.step + 1); break;
@@ -305,6 +314,12 @@ export class GameUI {
       case 'slot': result(assignSlot(g, id, Number(node.dataset.k), node.dataset.sku || null)); break;
       case 's-hire': result(hireStaff(g, id, node.dataset.role), 'upgrade'); break;
       case 's-shift': result(setShift(g, id, node.dataset.shift)); break;
+      case 'goto': sfx('open'); this.app.switchStore(id); break;
+      case 'pickloc': sfx('open'); this.showLocations(); break;
+      case 'tfrom': this.transfer.from = id; this.transfer.items = {}; sfx('click'); this.refresh(true); break;
+      case 'tto': this.transfer.to = id; sfx('click'); this.refresh(true); break;
+      case 'titem': { const it = this.transfer.items; it[id] = Math.max(0, (it[id] || 0) + Number(node.dataset.d)); if (!it[id]) delete it[id]; sfx('click'); this.refresh(true); break; }
+      case 'tsend': { const t = this.transfer; const r = result(transferStock(g, t.from, t.to, t.items), 'delivery'); if (r.ok) t.items = {}; this.refresh(true); break; }
       case 's-train': result(trainStaff(g, id, node.dataset.skill), 'upgrade'); break;
       case 'refill': result(setRefill(g, id, Number(node.dataset.k), Number(node.dataset.lv))); break;
       case 'rush': result(rushSlot(g, id, Number(node.dataset.k)), 'queue'); break;
@@ -404,6 +419,9 @@ export class GameUI {
     on('storeSale', ({ total }) => { sfx('coin'); w.burst('coin', 'counter', 5); this.float('counter', `+${money(total)}`, 'money'); this.bump(); });
     on('staffHired', (rec) => { this.toast('🙋', `${rec.name} joined the team`, `${STAFF_ROLES[rec.role].name} · ${money(rec.wage)}/day`, 'good'); const t = g.state.store.tutorial; if (!t.done && t.step === 0) this._storeTutAdvance(1); });
     on('furniturePlaced', () => w.burst('spark', 'door', 0));
+    on('chainReady', () => { sfx('fanfare'); this.showChainReady(); });
+    on('branchOpened', () => this.app.save(true));
+    on('transferArrived', (t) => { if (!t.auto) { sfx('delivery'); this.toast('🚚', `Stock arrived at ${storeName(g.state, t.to)}`, `${Object.values(t.items).reduce((a, b) => a + b, 0)} units`, 'good'); } });
     on('lineUnlocked', ({ id }) => this.toast('🌟', `New product line: ${PRODUCTS[id].name}!`, 'Your first recipe is in the Recipe Book. Give it a display.', 'gold'));
     on('staffTrained', ({ rec, skill }) => { sfx('star'); this.toast('🎓', `${rec.name} finished training`, `${skill === 'speed' ? 'Speed' : 'Service'} is now ${Math.round(rec[skill] * 100)}`, 'good'); });
     on('loyalty', () => this.toast('💳', 'Loyalty cards are out', 'Regulars will be back more often', 'good'));
@@ -549,6 +567,25 @@ export class GameUI {
     }, { confetti: true });
   }
 
+  showChainReady() {
+    this.modal(`<div class="big-ico">🌱</div><h2>Main Street is <em>thriving</em></h2>
+      <p>Regulars know the staff by name, the shelves sell out by closing, and people are asking when you'll open somewhere closer to them. Chapter Three begins: the brand can grow into a chain.</p>
+      <p>Choose where your second shop goes. Every neighbourhood has its own rent, its own crowd, and its own idea of a perfect gift.</p>
+      <div class="actions"><button class="btn ghost" data-act="m-ok">Later</button><button class="btn lg teal" data-act="m-pick">Choose a location</button></div>`, {
+      'm-ok': () => { sfx('click'); this.closeModal(); },
+      'm-pick': () => { sfx('click'); this.closeModal(); this.showLocations(); },
+    }, { confetti: true });
+  }
+
+  showLocations() {
+    const acts = { 'm-ok': () => { sfx('click'); this.closeModal(); } };
+    for (const id of LOCATION_ORDER) acts[`m-open-${id}`] = () => { sfx('fanfare'); this.closeModal(); this.app.openBranch(id); };
+    this.modal(`<h2>Where should the next shop go?</h2>
+      <p class="muted">Each new shop has its own floor, staff and back stock. Main Street's workroom makes the products for all of them, so plan your production. A Store Manager keeps a branch stocked from Main Street on their own.</p>
+      <div class="locs">${locationCards(this.game.state)}</div>
+      <div class="actions"><button class="btn ghost" data-act="m-ok">Not yet</button></div>`, acts);
+  }
+
   // For players who signed the lease before the store existed (or chose to wait).
   showMoveIn() {
     this.modal(`<div class="big-ico">🏪</div><h2>Your store is <em>ready</em></h2>
@@ -573,6 +610,7 @@ export class GameUI {
     const open = s.orders.filter((o) => o.status === 'open').length;
     h.cust.textContent = this.isStore ? `${s.store.customers.length}${s.orders.length ? ` · ${s.orders.length} online` : ''}` : s.orders.length;
     h.day.textContent = `Day ${s.time.day}`;
+    if (h.storename) h.storename.textContent = `${s.store.name || 'Main Street'}${storeIds(s).length > 1 ? ' ▾' : ''}`;
     h.time.textContent = clockLabel(s);
     h.ring.style.setProperty('--p', ((s.time.t / DAY_LENGTH) * 100).toFixed(1));
     const sp = s.time.paused ? 0 : s.time.speed;
@@ -601,7 +639,7 @@ export class GameUI {
     }
 
     // orders rail (keyed, so cards do not re-animate or lose clicks)
-    const cards = orderCards(s);
+    const cards = this.isStore ? withStore(s, 'main', () => orderCards(s)) : orderCards(s);
     const seen = new Set();
     let prev = null;
     for (const c of cards) {
@@ -627,9 +665,13 @@ export class GameUI {
     // goal bar
     const goals = homeGoals(s), pct = Math.round(homeProgress(s) * 100);
     let gh;
-    if (this.isStore) {
+    if (this.isStore && !s.milestone.chainReady && !this.isBranch) {
+      const goals = expansionGoals(s), pct = Math.round((goals.reduce((a, x) => a + x.pct, 0) / goals.length) * 100);
+      gh = `<div class="head">${ICONS.chain} Road to a second shop <span class="pct">${pct}%  ${this.goalOpen ? '▾' : '▴'}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+      if (this.goalOpen) gh += `<div class="list">${goals.map((x) => `<div class="g ${x.done ? 'done' : ''}"><span>${x.done ? '✅' : '⬜'}</span><span>${x.label}</span><b>${x.money ? money(Math.min(x.value, x.target)) : x.decimals ? x.value.toFixed(1) : Math.min(x.value, x.target)} / ${x.money ? money(x.target) : x.target}</b>${x.hint && !x.done ? `<small>${x.hint}</small>` : ''}</div>`).join('')}</div>`;
+    } else if (this.isStore) {
       const st = s.store, t = st.today;
-      gh = `<div class="head" style="white-space:nowrap">${ICONS.store} Main Street <span class="stars-sm">★ ${st.reputation.toFixed(1)}</span> <span class="pct">${st.customers.length} inside · ${t.visitors} today${t.buyers + t.walkouts ? ` · ${Math.round((t.buyers / (t.buyers + t.walkouts)) * 100)}% bought` : ''}</span></div>`;
+      gh = `<div class="head" style="white-space:nowrap">${ICONS.store} ${esc(st.name || 'Main Street')} <span class="stars-sm">★ ${st.reputation.toFixed(1)}</span> <span class="pct">${st.customers.length} inside · ${t.visitors} today${t.buyers + t.walkouts ? ` · ${Math.round((t.buyers / (t.buyers + t.walkouts)) * 100)}% bought` : ''}</span></div>`;
     } else if (s.milestone.leaseSigned) gh = `<div class="head">🗝️ Lease signed · <span class="pct">Open the store →</span></div>`;
     else if (s.milestone.outgrown) gh = `<div class="head">${ICONS.store} You've outgrown the kitchen! <span class="pct">Sign the lease →</span></div>`;
     else {
@@ -662,6 +704,7 @@ export class GameUI {
     this.root.querySelectorAll('[data-live]').forEach((n) => {
       const [kind, id] = n.dataset.live.split(':');
       if (kind === 'station') n.style.width = `${stationProgress(s.stations[Number(id)]) * 100}%`;
+      else if (kind === 'transfer') { const t = (s.transfers || []).find((x) => x.id === id); if (t) n.style.width = `${(1 - t.eta / t.lead) * 100}%`; }
       else if (kind === 'delivery') { const d = s.deliveries.find((x) => x.id === id); if (d) n.style.width = `${(1 - d.eta / d.lead) * 100}%`; }
       else if (kind === 'campaign') {
         const a = s.marketing.active.find((x) => x.id === id), c = CAMPAIGNS[id];

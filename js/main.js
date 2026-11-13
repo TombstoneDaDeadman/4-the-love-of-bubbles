@@ -5,6 +5,7 @@ import { Engine } from './world/engine.js';
 import { HomeWorld } from './world/home.js';
 import { StoreWorld } from './world/store.js';
 import { openStore } from './sim/store.js';
+import { swapTo, openBranch } from './sim/chain.js';
 import { Game, newGameState } from './sim/core.js';
 import { tick } from './sim/business.js';
 import { saveGame, loadGame, hasSave, clearSave } from './sim/save.js';
@@ -30,6 +31,18 @@ const app = {
     const r = openStore(app.game);
     if (!r.ok) { if (app.ui) app.ui.toast('⚠️', r.reason, '', 'bad'); return; }
     startGame(app.game.state, { intro: true });
+  },
+  // Era III: look at another shop (the whole chain keeps running either way).
+  switchStore(id, intro = false) {
+    const s = app.game.state;
+    if (app.ui) app.ui.closeModal();
+    swapTo(s, id);
+    startGame(s, { intro });
+  },
+  openBranch(locId) {
+    const r = openBranch(app.game, locId);
+    if (!r.ok) { if (app.ui) app.ui.toast('⚠️', r.reason, '', 'bad'); return; }
+    app.switchStore(r.id, true);
   },
   // Diagnostics: fast-forward the simulation by a number of sim-seconds (ignores game speed).
   advance(seconds) { const t = app.game.state.time, sp = t.speed, p = t.paused; t.speed = 1; t.paused = false; for (let i = 0; i < seconds * 5; i++) tick(app.game, 0.2); t.speed = sp; t.paused = p; },
@@ -174,7 +187,8 @@ function startGame(state, { intro = false } = {}) {
       app.world.facadeShot = false;
       Object.assign(eng.goal, STORE_VIEW());
       state.time.paused = false;
-      if (app.ui) { app.ui.toast('🏪', 'Open for business on Main Street!', 'Your first walk-in shoppers are on their way.', 'gold'); app.ui.refresh(true); }
+      const nm = state.store.name || 'Main Street';
+      if (app.ui) { app.ui.toast('🏪', `Open for business: ${nm}!`, state.current && state.current !== 'main' ? 'Hire a Store Manager and a cashier in Staff.' : 'Your first walk-in shoppers are on their way.', 'gold'); app.ui.refresh(true); }
     }, 3400);
   } else if (state.era === 'home' && state.milestone.leaseSigned) {
     app.ui.showMoveIn();

@@ -22,6 +22,7 @@ export const ICONS = {
   close: svg(`<path d="M6 6l12 12M18 6L6 18"/>`),
   lock: svg(`<rect ${T} x="5.500" y="11" width="13" height="9" rx="2.500"/><path d="M8.500 11V8a3.500 3.500 0 0 1 7 0v3"/>`),
   build: svg(`<path ${T} d="M4 20V9.500l8-5.500 8 5.500V20z"/><path d="M4 13.500h16M9 20v-6.500M15 20v-6.500M12 4v4"/>`),
+  chain: svg(`<path ${T} d="M2.500 12l3-3.500 3 3.500v7h-6zM9 10l3-4 3 4v9H9zM15.500 12l3-3.500 3 3.500v7h-6z"/><path d="M11 19v-3h2v3"/>`),
   store: svg(`<path ${T} d="M4 10l1.500-5h13L20 10v10H4z"/><path d="M4 10h16M10 20v-5h4v5"/>`),
 };
 

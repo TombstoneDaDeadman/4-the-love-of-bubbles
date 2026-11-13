@@ -52,7 +52,7 @@ export function storeData(state, id) {
   if (id === currentId(state)) return { store: state.store, goods: state.goods, actors: state.actors };
   return state.parked && state.parked[id];
 }
-export const goodsOf = (state, id) => { const d = storeData(state, id); return d ? d.goods : null; };
+export const goodsOf = (state, id) => { if (id === 'kitchen') return state.kitchen ? state.kitchen.warehouse : null; const d = storeData(state, id); return d ? d.goods : null; };
 export const locationOf = (store) => LOCATIONS[(store && store.location) || 'main'] || LOCATIONS.main;
 
 // ---- Expansion goals -------------------------------------------------------------------------
@@ -99,6 +99,7 @@ export function openBranch(game, locId) {
   const id = game.nextId('store');
   const st = newStoreState();
   Object.assign(st, { id, name: L.name, location: locId });
+  st.tutorial.done = true; // the player already knows how a shop works
   const goods = {};
   for (const k of s.skus) goods[k.id] = 0;
   s.parked = s.parked || {};
@@ -182,6 +183,7 @@ export function managerReorder(game) {
 }
 
 export function storeName(state, id) {
+  if (id === 'kitchen') return 'Central kitchen';
   const d = storeData(state, id);
   return d && d.store ? d.store.name || 'Main Street' : 'Main Street';
 }
@@ -220,6 +222,7 @@ export function companyUnits(state) {
     for (const a of state.actors) if (a.task && a.task.payload && a.task.type !== 'collect') n += a.task.payload.units;
   });
   for (const t of state.transfers || []) n += Object.values(t.items).reduce((a, b) => a + b, 0);
+  if (state.kitchen) n += Object.values(state.kitchen.warehouse).reduce((a, b) => a + b, 0);
   for (const o of state.orders) if (o.status !== 'open') n += o.lines.reduce((a, l) => a + l.qty, 0);
   return n;
 }

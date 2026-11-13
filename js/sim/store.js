@@ -12,7 +12,7 @@
 // Shoppers can never get stuck: every state has a time limit, unreachable targets are skipped,
 // and a shopper who cannot find a way out is walked to the door.
 
-import { STORE, STORE_POINTS, STARTER_LAYOUT, FURNITURE, ARCHETYPES, ARCHETYPE_ORDER, QUEUE_CELLS, CUSTOMER_NAMES, STORE_REVIEW_TEXT, PRODUCT_ORDER, DAY_LENGTH, SELL_BACK, STORE_GRID, STORE_ROWS, LOYALTY, LOCATIONS } from '../data.js';
+import { STORE, STORE_POINTS, STARTER_LAYOUT, FURNITURE, ARCHETYPES, ARCHETYPE_ORDER, QUEUE_CELLS, CUSTOMER_NAMES, STORE_REVIEW_TEXT, PRODUCT_ORDER, DAY_LENGTH, SELL_BACK, STORE_GRID, STORE_ROWS, LOYALTY, LOCATIONS, REGIONAL } from '../data.js';
 import { transact } from './economy.js';
 import { getSku, refPrice, skuQuality, skuRating, addGoods, productUnlocked } from './inventory.js';
 import { addReview, marketingBoost } from './orders.js';
@@ -37,7 +37,7 @@ export function newStoreState() {
     ratings: [],
     reputation: 3.8,
     stats: { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, helped: 0 },
-    today: { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, reasons: {} },
+    today: { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, reasons: {}, skuSold: {} },
     days: [],
     tutorial: { step: 0, done: false },
     clean: 100,          // floor condition, 0-100 (messes count against it on top)
@@ -101,6 +101,9 @@ function newFurniture(game, type, i, j, rot) {
 export const isDisplay = (fu) => FURNITURE[fu.type].slots > 0;
 export function getFurniture(state, id) { return state.store ? state.store.furniture.find((f) => f.id === id) : null; }
 
+// Brand Soul is one number for the whole company: each shopper's effect on it shrinks as the
+// chain grows, so that growth by itself is never what erodes the brand (brief §8).
+const shopCount = (state) => Math.max(1, (state.storeOrder || []).length);
 const locOf = (state) => LOCATIONS[(state.store && state.store.location) || 'main'] || LOCATIONS.main;
 export const storeRent = (state) => locOf(state).rent;
 
@@ -263,7 +266,7 @@ export function trafficBreakdown(state) {
   const growth = 1 + Math.min(0.5, daysOpen * 0.05);
   const marketing = 1 + marketingBoost(state, 'store') + marketingBoost(state, 'online') * 0.25;
   const hour = hourCurve(state.time.t);
-  const place = locOf(state).traffic;
+  const place = locOf(state).traffic * (state.regional ? 1 + REGIONAL.traffic : 1);
   return { rep, soul, appeal, growth, marketing, hour, place, total: rep * soul * appeal * growth * marketing * hour * place };
 }
 
@@ -283,7 +286,7 @@ export function spawnCustomer(game) {
   }
   const benches = Math.min(2, st.furniture.filter((f) => f.type === 'bench').length);
   const patience = game.randInt(A.patience[0], A.patience[1]) * (1 + benches * 0.08) * (arch === 'regular' && st.loyalty ? 1.2 : 1);
-  const mood = 52 + designScore(s).total * 0.2 - (100 - cleanliness(s)) * 0.15;
+  const mood = 52 + designScore(s).total * 0.2 - (100 - cleanliness(s)) * 0.15 + (s.regional ? REGIONAL.mood : 0);
   const fromLeft = game.rand() < 0.5;
   const p = STORE_POINTS[fromLeft ? 'streetL' : 'streetR'];
   const c = {
@@ -484,6 +487,8 @@ function pay(game, c) {
   for (const l of c.basket) {
     const sku = getSku(s, l.skuId);
     units += l.qty;
+    st.today.skuSold = st.today.skuSold || {};
+    st.today.skuSold[l.skuId] = (st.today.skuSold[l.skuId] || 0) + l.qty;
     if (sku) { sku.sold += l.qty; sku.storeSold = (sku.storeSold || 0) + l.qty; sku.storeRevenue = r2((sku.storeRevenue || 0) + l.qty * l.price); q += skuQuality(sku) * l.qty; }
   }
   s.stats.unitsSold += units;
@@ -493,7 +498,7 @@ function pay(game, c) {
   q /= Math.max(1, units);
   if (c.wait > 18) c.mood -= Math.min(30, (c.wait - 18) * 0.6);
   c.mood += 3 + (tillService(s) - 1) * 20;
-  s.soul = clamp(s.soul + ((q - 70) / 30) * 0.12 + 0.04, 0, 100);
+  s.soul = clamp(s.soul + (((q - 70) / 30) * 0.12 + 0.04) / shopCount(s), 0, 100);
   c.paid = true;
   c.sold = c.basket; // keep the receipt for the review
   c.basket = [];
@@ -513,7 +518,7 @@ function finish(game, c) {
     st.stats.walkouts += 1; st.today.walkouts += 1;
     const why = c.reason || 'nothing';
     st.today.reasons[why] = (st.today.reasons[why] || 0) + 1;
-    if (why === 'stockout' || why === 'line') s.soul = clamp(s.soul - 0.1, 0, 100);
+    if (why === 'stockout' || why === 'line') s.soul = clamp(s.soul - 0.1 / shopCount(s), 0, 100);
   }
   if (game.rand() < (stars === 5 || stars <= 2 ? 0.4 : 0.22)) {
     addReview(game, stars, { customer: c.name, lines: c.sold || [] }, STORE_REVIEW_TEXT, 'store');
@@ -625,13 +630,13 @@ export function closeStoreDay(state) {
   if (!st) return null;
   const t = st.today;
   const clean = cleanliness(state);
-  const summary = { day: state.time.day, visitors: t.visitors, buyers: t.buyers, walkouts: t.walkouts, items: t.items, revenue: t.revenue, stockouts: t.stockouts, missed: t.missed, rating: st.reputation, clean, design: designScore(state).total, reasons: { ...t.reasons } };
+  const summary = { day: state.time.day, visitors: t.visitors, buyers: t.buyers, walkouts: t.walkouts, items: t.items, revenue: t.revenue, stockouts: t.stockouts, missed: t.missed, rating: st.reputation, clean, design: designScore(state).total, reasons: { ...t.reasons }, skuSold: { ...(t.skuSold || {}) } };
   // A grubby shop wears at the brand; closing-time tidy-up is quicker with a team.
   if (clean < 50) state.soul = clamp(state.soul - 1.5, 0, 100);
   st.clean = clamp(st.clean + (st.staff.length ? 30 : 15), 0, 100);
   st.days.push(summary);
   if (st.days.length > 30) st.days.shift();
-  st.today = { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, reasons: {} };
+  st.today = { visitors: 0, buyers: 0, walkouts: 0, stockouts: 0, items: 0, revenue: 0, missed: 0, reasons: {}, skuSold: {} };
   return summary;
 }
 

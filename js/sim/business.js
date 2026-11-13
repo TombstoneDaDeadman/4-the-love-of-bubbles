@@ -10,6 +10,7 @@ import { newActor } from './core.js';
 import { tickStore, closeStoreDay, refreshCandidates, storeRent } from './store.js';
 import { tickStoreStaff, payWages } from './staff.js';
 import { storeIds, currentId, swapTo, tickTransfers, tickExpansion, managerReorder } from './chain.js';
+import { tickCompany, payCompany, tickFinale } from './company.js';
 
 // ---- Upgrades -------------------------------------------------------------
 
@@ -114,6 +115,7 @@ function endDay(game) {
       refreshCandidates(game);
     }
     swapTo(s, viewing);
+    payCompany(game);
   } else {
     forceExpense(game, DAILY_UTILITIES + (s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
     if (s.upgrades.helper) forceExpense(game, UPGRADES.helper.wage, 'Staff wages', 'Weekend helper');
@@ -146,6 +148,7 @@ export function tick(game, dtReal) {
       swapTo(s, 'main');
       tickOrders(game, dt);
       tickTransfers(game, dt);
+      tickCompany(game, dt);
       tickStore(game, dt); tickStoreStaff(game, dt);
       for (const id of storeIds(s)) {
         if (id === 'main') continue;
@@ -157,6 +160,7 @@ export function tick(game, dtReal) {
       }
       swapTo(s, viewing);
       tickExpansion(game);
+      tickFinale(game);
     } else {
       tickOrders(game, dt);
       tickWorkers(game, dt);

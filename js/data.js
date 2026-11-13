@@ -333,3 +333,33 @@ export const CHAIN = {
   par: 8,               // a manager keeps at least this much of each displayed product in back stock
   managerEvery: 20,     // sim-seconds between a manager's stock checks
 };
+
+// ---- Milestone 6: running the brand -----------------------------------------------------
+
+// An off-site central kitchen with production lines and a warehouse. Lines run on their own
+// with a small crew, buy ingredients in bulk, and make double batches.
+export const KITCHEN = {
+  cost: 6500, lineCost: 2400, startLines: 2, maxLines: 4,
+  crewWage: 55,            // per line per day
+  batchMult: 2, timeMult: 1.3,
+  bulkDiscount: 0.85,      // ingredients cost less bought by the pallet
+  target: 30,              // warehouse units to keep of each listed recipe
+  par: 14,                 // delivery trucks top each shop's back stock up to this (per displayed recipe)
+  truckFee: 18,            // per shop per run
+  morning: 0.03, midday: 0.5,   // fractions of the day when trucks leave
+  forecastFactor: 1.3,
+};
+export const REGIONAL = { wage: 120, traffic: 0.06, mood: 3, name: 'Regional Manager' };
+
+export const WHOLESALE_CLIENTS = [
+  { name: 'Willow Day Spa', kind: 'spa', products: ['butter', 'scrub', 'bomb'] },
+  { name: 'Bloom Hair Studio', kind: 'salon', products: ['hair', 'soap'] },
+  { name: 'Harbor Inn B&B', kind: 'hotel', products: ['soap', 'bomb'] },
+  { name: 'The Grand Seaside Hotel', kind: 'hotel', products: ['soap', 'butter'] },
+  { name: 'Petal & Pine Gifts', kind: 'boutique', products: ['gift', 'bomb', 'butter'] },
+  { name: 'Sage Yoga Collective', kind: 'studio', products: ['scrub', 'butter', 'hair'] },
+];
+export const WHOLESALE = { maxActive: 2, offerEvery: 2, priceFactor: 0.72, missPenalty: 40, maxMisses: 3 };
+
+// The last chapter's goals. Meeting all of them is the ending (the game carries on afterwards).
+export const CHAIN_GOALS = { shops: 3, revenue: 60000, rating: 4.0, soul: 70, contracts: 1 };

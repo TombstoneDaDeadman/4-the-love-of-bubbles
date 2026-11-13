@@ -60,7 +60,10 @@ export function closeDay(game) {
     cats: { ...L.today.cats },
     byStore: JSON.parse(JSON.stringify(L.today.byStore || {})),
     cash: s.cash,
+    soul: Math.round(s.soul),
+    unitsSold: s.stats.unitsSold - (L.lastUnitsSold || 0),
   };
+  L.lastUnitsSold = s.stats.unitsSold;
   L.days.push(summary);
   if (L.days.length > 60) L.days.shift();
   L.today = { revenue: 0, expenses: 0, cats: {}, byStore: {} };

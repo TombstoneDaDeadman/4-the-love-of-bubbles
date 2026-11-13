@@ -16,32 +16,7 @@ import { INGREDIENTS, LOCATIONS, CHAIN, SAVE_VERSION, DAY_LENGTH } from '../js/d
 const run = (g, seconds) => { for (let t = 0; t < seconds; t += 0.2) tick(g, 0.2); };
 const balanced = (s) => assert.ok(Math.abs(s.cash - s.ledger.sum) < 0.005, `cash ${s.cash} != ledger ${s.ledger.sum}`);
 const units = (s) => companyUnits(s) - (s.stats.unitsMade - s.stats.unitsSold);
-
-export function chainGame(seed = 3, cash = 12000) {
-  const g = new Game(newGameState({}, seed));
-  const s = g.state;
-  s.milestone.outgrown = true;
-  transact(g, cash, 'Online orders');
-  signLease(g);
-  for (const k of s.skus) s.goods[k.id] = 40;
-  openStore(g);
-  for (const k of s.skus) s.goods[k.id] += 30; // a stocked back room
-  for (const id of ['mixer', 'station2', 'bigpot', 'goods']) s.upgrades[id] = true;
-  s.stations[1].unlocked = true;
-  return g;
-}
-
-// Keep Main Street's workroom busy, buying ingredients as needed (shared by the soak bots).
-export function keepProducing(g, depth = 3) {
-  const s = g.state;
-  if (s.queue.length >= depth || goodsFree(s) <= 12 || currentId(s) !== 'main') return;
-  const sku = [...s.skus].sort((a, b) => (s.goods[a.id] || 0) - (s.goods[b.id] || 0))[0];
-  const needs = batchNeeds(s, sku);
-  if (hasIngredients(s, needs)) { queueBatch(g, sku.id); return; }
-  const buy = {};
-  for (const [id, q] of Object.entries(needs)) if ((s.ingredients[id] || 0) + s.deliveries.reduce((a, d) => a + (d.items[id] || 0), 0) < q * 3) buy[id] = Math.ceil((q * 3) / INGREDIENTS[id].lot) * INGREDIENTS[id].lot;
-  if (Object.keys(buy).length) orderSupplies(g, buy);
-}
+import { chainGame, keepProducing } from './helpers.mjs';
 
 test('chain: expansion goals gate the second store', () => {
   const g = chainGame(5);

@@ -3,7 +3,7 @@
 
 import { FURNITURE, FURNITURE_ORDER, STAFF_ROLES, STAFF_ROLE_ORDER, STORE, ARCHETYPES, SELL_BACK, SHIFTS, SHIFT_ORDER } from '../data.js';
 import { trafficBreakdown, unitsOnDisplay, isDisplay, designScore, cleanliness } from '../sim/store.js';
-import { wagesPerDay, wageToday, onShift } from '../sim/staff.js';
+import { wagesPerDay, wageToday, onShift, roleAllowed } from '../sim/staff.js';
 import { money, esc, starStr, skuSwatch } from './panels.js';
 import { ICONS } from './icons.js';
 
@@ -148,7 +148,7 @@ export function storeStaffPanel(s) {
     const canTrain = !rec.training && onShift(s, rec) && s.cash >= STORE.trainCost;
     out += `<div class="card"><div class="row"><span class="swatch" style="background:#d6ecea">${R.icon}</span><div class="grow"><div class="title">${esc(rec.name)}</div><div class="muted">${R.name} · ${esc(status)}</div></div><b class="neg" style="font-size:13px">${money(wageToday(rec))}/day</b></div>
       <div class="chips">${stat('Speed', rec.speed)}${stat('Service', rec.service)}<span class="chip" title="Every three days worked, a little better at everything">${rec.xp || 0} day${rec.xp === 1 ? '' : 's'} experience</span></div>
-      <div class="tiny">Role</div><div class="pick">${STAFF_ROLE_ORDER.map((r) => `<button class="${rec.role === r ? 'on' : ''}" data-act="s-role" data-id="${rec.id}" data-role="${r}">${STAFF_ROLES[r].icon} ${STAFF_ROLES[r].name}</button>`).join('')}</div>
+      <div class="tiny">Role</div><div class="pick">${STAFF_ROLE_ORDER.filter((r) => roleAllowed(s, r).ok || rec.role === r).map((r) => `<button class="${rec.role === r ? 'on' : ''}" data-act="s-role" data-id="${rec.id}" data-role="${r}">${STAFF_ROLES[r].icon} ${STAFF_ROLES[r].name}</button>`).join('')}</div>
       <div class="tiny">Shift</div><div class="pick">${SHIFT_ORDER.map((sh) => `<button class="${(rec.shift || 'full') === sh ? 'on' : ''}" data-act="s-shift" data-id="${rec.id}" data-shift="${sh}">${SHIFTS[sh].name}</button>`).join('')}</div>
       <div class="row wrap"><button class="btn sm ghost" data-act="s-train" data-id="${rec.id}" data-skill="speed" ${canTrain && rec.speed < STORE.statCap ? '' : 'disabled'}>Train speed · ${money(STORE.trainCost)}</button><button class="btn sm ghost" data-act="s-train" data-id="${rec.id}" data-skill="service" ${canTrain && rec.service < STORE.statCap ? '' : 'disabled'}>Train service · ${money(STORE.trainCost)}</button><span class="grow"></span><button class="btn sm ghost" data-act="s-fire" data-id="${rec.id}">Let go</button></div></div>`;
   }
@@ -156,10 +156,10 @@ export function storeStaffPanel(s) {
   for (const c of st.candidates) {
     out += `<div class="card"><div class="row"><span class="swatch" style="background:#f6e4c4">${ICONS.staff}</span><div class="grow"><div class="title">${esc(c.name)}</div><div class="muted">Would like ${STAFF_ROLES[c.role].name.toLowerCase()} work</div></div><b style="font-size:13px">${money(c.wage)}/day</b></div>
       <div class="chips">${stat('Speed', c.speed)}${stat('Service', c.service)}</div>
-      <div class="row wrap">${STAFF_ROLE_ORDER.map((r) => `<button class="btn sm ${r === c.role ? 'teal' : 'ghost'}" data-act="s-hire" data-id="${c.id}" data-role="${r}" ${st.staff.length >= STORE.maxStaff || s.cash < STORE.hireFee ? 'disabled' : ''}>Hire as ${STAFF_ROLES[r].name}</button>`).join('')}</div></div>`;
+      <div class="row wrap">${STAFF_ROLE_ORDER.filter((r) => roleAllowed(s, r).ok).map((r) => `<button class="btn sm ${r === c.role ? 'teal' : 'ghost'}" data-act="s-hire" data-id="${c.id}" data-role="${r}" ${st.staff.length >= STORE.maxStaff || s.cash < STORE.hireFee ? 'disabled' : ''}>Hire as ${STAFF_ROLES[r].name}</button>`).join('')}</div></div>`;
   }
   out += `<div class="tiny" style="padding:0 4px">Hiring costs ${money(STORE.hireFee)} up front.</div><div class="sect">Roles</div>`;
-  for (const r of STAFF_ROLE_ORDER) out += `<div class="card"><div class="row"><span class="swatch" style="background:#eef5f1">${STAFF_ROLES[r].icon}</span><div class="grow"><div class="title">${STAFF_ROLES[r].name}</div><div class="muted">${STAFF_ROLES[r].desc}</div></div></div></div>`;
+  for (const r of STAFF_ROLE_ORDER.filter((x) => roleAllowed(s, x).ok)) out += `<div class="card"><div class="row"><span class="swatch" style="background:#eef5f1">${STAFF_ROLES[r].icon}</span><div class="grow"><div class="title">${STAFF_ROLES[r].name}</div><div class="muted">${STAFF_ROLES[r].desc}</div></div></div></div>`;
   out += `<div class="tiny" style="padding:0 4px">Training takes them off the floor for a little while at the office laptop, and the improvement is permanent.</div>`;
   return out;
 }

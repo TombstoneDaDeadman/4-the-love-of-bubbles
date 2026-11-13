@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mat, PAL, box, cyl, sphere, at, group, productMesh, cardboardBox, crate, plant, woodFloorTexture, signTexture, screenTexture, wallTexture, groundTexture, sprites, sprite, compactStatic, disposeMerged } from './kit.js';
 import { createCharacter, founderLook, HELPER_LOOK } from './character.js';
 import { HomeWorld } from './home.js';
-import { INGREDIENTS, INGREDIENT_ORDER, PRODUCTS, SCENTS, STORE_POINTS, STORE_GRID, STORE_ROWS, FURNITURE, DAY_LENGTH, PEOPLE, STORE_FIXED, STORE_RESERVED } from '../data.js';
+import { INGREDIENTS, INGREDIENT_ORDER, PRODUCTS, SCENTS, STORE_POINTS, STORE_GRID, STORE_ROWS, FURNITURE, DAY_LENGTH, PEOPLE, STORE_FIXED, STORE_RESERVED, LOCATIONS } from '../data.js';
 import { footprint, furnitureCenter } from '../sim/path.js';
 import { goodsCap, ingredientCap } from '../sim/inventory.js';
 
@@ -55,6 +55,11 @@ export class StoreWorld {
     this.t = 0;
     this._sig = {};
     this.build = { on: false, ghost: null, selected: null };
+    // Era III: each location has its own colours; branches have no workroom kitchen.
+    const st0 = game.state.store;
+    this.loc = LOCATIONS[(st0 && st0.location) || 'main'] || LOCATIONS.main;
+    this.theme = { wall: '#f7ecdf', panel: '#bfd8c6', awning: '#e98fa5', accent: '#4f7f6a', ...(this.loc.theme || {}) };
+    this.isMain = !game.state.current || game.state.current === 'main';
     this._buildShell();
     this._buildStreet();
     this._buildBackRoom();
@@ -64,6 +69,18 @@ export class StoreWorld {
     this._buildHover();
     this._buildBubbles();
     this._buildMesses();
+    if (!this.isMain) this._stockroomOnly();
+  }
+
+  // A branch has no kitchen: hide the stoves, mixer and packing, and stop them being clickable.
+  _stockroomOnly() {
+    for (const v of this.stations) v.g.visible = false;
+    this.mixer.visible = false;
+    this.packBox.visible = false;
+    const drop = new Set(['station0', 'station1', 'pantry', 'packing']);
+    const keep = this.engine.interactables.filter((m) => !drop.has(m.userData.interact));
+    this.engine.interactables.length = 0; this.engine.interactables.push(...keep);
+    for (const id of drop) delete this.anchors[id];
   }
 
   // Spills and wear (Milestone 4 cleanliness): decals for each mess, plus a faint grime layer.
@@ -120,11 +137,11 @@ export class StoreWorld {
     // entrance mat and a soft rug under the feature table
     r.add(at(box(2.0, 0.012, 0.9, mat('#c7a98a', { roughness: 1 }), 0.01), 0, 0.008, 5.0));
 
-    const panel = mat('#bfd8c6', { roughness: 0.85 }), rail = mat('#fffaf0', { roughness: 0.6 }), cap = mat('#e3d2bd');
+    const panel = mat(this.theme.panel, { roughness: 0.85 }), rail = mat('#fffaf0', { roughness: 0.6 }), cap = mat('#e3d2bd');
     const WH = 1.0;
     const mk = (len, alongX, inward) => {
       const g = wallGroup();
-      const t = wallTexture('#f7ecdf'); t.repeat.set(len * 0.5, 2);
+      const t = wallTexture(this.theme.wall); t.repeat.set(len * 0.5, 2);
       const wm = new THREE.MeshStandardMaterial({ map: t, roughness: 0.95, envMapIntensity: 0.3 });
       g.add(at(alongX ? box(len, H, T, wm) : box(T, H, len, wm), 0, H / 2, 0));
       g.add(at(alongX ? box(len, 0.05, T + 0.02, cap) : box(T + 0.02, 0.05, len, cap), 0, H + 0.025, 0));
@@ -190,7 +207,7 @@ export class StoreWorld {
   _buildFront() {
     const g = wallGroup();
     const z = HZ + T / 2;
-    const frame = mat('#4f7f6a', { roughness: 0.5 }), sill = mat('#f4eadc', { roughness: 0.85 });
+    const frame = mat(this.theme.accent, { roughness: 0.5 }), sill = mat('#f4eadc', { roughness: 0.85 });
     const glass = new THREE.MeshStandardMaterial({ color: '#dff0f2', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.18, envMapIntensity: 1.2, depthWrite: false });
     this.frontGlass = glass;
     for (const [x0, x1] of [[-HX - T, -1.05], [1.05, HX + T]]) {
@@ -210,10 +227,15 @@ export class StoreWorld {
     const signBoard = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.62 * 1.4), new THREE.MeshStandardMaterial({ map: signTexture(), roughness: 0.7 }));
     signBoard.position.set(0, 2.78, T / 2 + 0.05);
     deco.add(at(box(3.55, 0.95, 0.06, frame), 0, 2.78, T / 2 - 0.01), signBoard);
+    if (this.loc.id !== 'main') {
+      const plaque = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.32), new THREE.MeshStandardMaterial({ map: this._textTex(this.loc.name.toUpperCase().split('').join(' '), '#fbf3e4', this.theme.accent), roughness: 0.8 }));
+      plaque.position.set(0, 2.05, T / 2 + 0.06);
+      deco.add(at(box(2.7, 0.4, 0.04, frame), 0, 2.05, T / 2 + 0.02), plaque);
+    }
     const stripe = (() => {
       const c = document.createElement('canvas'); c.width = 256; c.height = 32;
       const x = c.getContext('2d');
-      for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#fbf3e4' : '#e98fa5'; x.fillRect(i * 32, 0, 32, 32); }
+      for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? '#fbf3e4' : this.theme.awning; x.fillRect(i * 32, 0, 32, 32); }
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.repeat.set(10, 1); return t;
     })();
     for (const s of [-1, 1]) {
@@ -804,8 +826,9 @@ export class StoreWorld {
 
     // production stations
     let anyRunning = false;
-    s.stations.forEach((stn, i) => {
+    if (this.isMain) s.stations.forEach((stn, i) => {
       const v = this.stations[i];
+      if (!v) return;
       v.g.visible = stn.unlocked;
       if (!stn.unlocked) { for (const p of v.steam) p.visible = false; return; }
       const big = s.upgrades.bigpot ? 1.25 : 1;
@@ -827,11 +850,11 @@ export class StoreWorld {
         } else p.visible = false;
       }
     });
-    this.mixer.visible = !!s.upgrades.mixer;
+    this.mixer.visible = this.isMain && !!s.upgrades.mixer;
 
     // pantry and back stock
     const psig = INGREDIENT_ORDER.map((id) => s.ingredients[id] || 0).join(',');
-    if (psig !== this._sig.pantry) {
+    if (this.isMain && psig !== this._sig.pantry) {
       this._sig.pantry = psig;
       disposeMerged(this.pantryHolder); this.pantryHolder.clear();
       const ys = this.pantry.userData.ys, cap = ingredientCap(s);
@@ -869,10 +892,10 @@ export class StoreWorld {
       this.stockUnits[1].u.visible = !!s.upgrades.goods || list.length > per;
     }
     const packer = s.actors.find((a) => a.task && a.task.type === 'pack' && a.task.i === 1 && a.task.timer >= 0);
-    this.packBox.visible = !!packer;
+    this.packBox.visible = this.isMain && !!packer;
     if (packer) this.packBox.scale.setScalar(0.5 + 0.5 * (packer.task.progress || 0));
     const queued = s.orders.filter((o) => o.status !== 'open').length;
-    this.parcelPile.forEach((b, i) => { b.visible = i < Math.min(4, queued); });
+    this.parcelPile.forEach((b, i) => { b.visible = this.isMain && i < Math.min(4, queued); });
 
     this._syncFurniture();
     this._syncMesses();

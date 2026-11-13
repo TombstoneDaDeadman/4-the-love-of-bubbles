@@ -426,3 +426,26 @@ button:focus-visible, .toggle:focus-visible { outline: 3px solid rgba(79, 169, 1
 .pl-bars i.in, .key.in { background: #6dbf8b; }
 .pl-bars i.out, .key.out { background: #e98fa5; }
 .key { height: 9px; border-radius: 2px; vertical-align: -1px; margin: 0 2px 0 6px; }
+
+/* ---- Era III: the chain ----------------------------------------------------------- */
+.storepill { display: inline-flex; align-items: center; gap: 7px; border: 0; cursor: pointer; font: inherit; font-weight: 800; font-size: 13px; color: var(--ink); background: #fffaf2; padding: 7px 12px 7px 8px; border-radius: 14px; box-shadow: 0 2px 8px rgba(74, 55, 40, .1); white-space: nowrap; }
+.storepill .ico { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 9px; background: var(--teal-soft, #d6ecea); }
+.storepill .ico svg { width: 17px; height: 17px; }
+.storepill:hover { transform: translateY(-1px); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kpis > div { background: #fbf4ea; border-radius: 10px; padding: 6px 8px; }
+.kpis small { display: block; font-size: 10.5px; color: #9a8572; font-weight: 700; }
+.kpis b { font-size: 14px; }
+.locs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 10px 0; text-align: left; }
+.loc { border-radius: 16px; padding: 12px 14px; background: #fffaf2; border-top: 6px solid var(--loc); box-shadow: 0 3px 12px rgba(74, 55, 40, .1); display: flex; flex-direction: column; gap: 7px; }
+.loc-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.loc-head b { font-family: var(--display); font-size: 17px; }
+.loc-head span { font-size: 12px; font-weight: 800; color: #9a8572; white-space: nowrap; }
+.loc p { margin: 0; font-size: 13px; }
+.loc .btn { margin-top: auto; }
+table.pl { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.pl th { font-size: 10.5px; color: #9a8572; text-align: right; font-weight: 800; padding: 2px 4px; }
+table.pl td { text-align: right; padding: 3px 4px; border-top: 1px solid #f0e4d4; font-weight: 700; }
+table.pl td:first-child, table.pl th:first-child { text-align: left; }
+@media (max-width: 700px) { .locs { grid-template-columns: 1fr; } .storepill span[data-h] { display: none; } }
+.modal:has(.locs) { width: min(780px, 100%); }
