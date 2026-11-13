@@ -1,7 +1,7 @@
 // Static game data. Nothing in this file is mutated at runtime.
 // (Mirrors the brief's "ScriptableObject" layer: definitions here, live state in sim/state.js.)
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 // One business day (08:00 -> 20:00) lasts DAY_LENGTH sim-seconds at 1x speed.
 export const DAY_LENGTH = 240;
@@ -273,9 +273,10 @@ export const STAFF_ROLES = {
   cashier:   { id: 'cashier',   name: 'Cashier',         wage: 42, icon: '🧾', desc: 'Works the till so shoppers never wait for you to come out of the back room.' },
   associate: { id: 'associate', name: 'Sales Associate', wage: 38, icon: '🛍️', desc: 'Helps shoppers find what they want, restocks and tidies up.' },
   stocker:   { id: 'stocker',   name: 'Stocker',         wage: 34, icon: '📦', desc: 'Keeps every display full and the floor clean. Never stops moving.' },
-  maker:     { id: 'maker',     name: 'Production Worker', wage: 44, icon: '🍯', desc: 'Runs the stove and packs online orders, so you are free for the shop.' },
+  maker:     { id: 'maker',     name: 'Production Worker', wage: 44, icon: '🍯', desc: 'Runs the stove and packs online orders, so you are free for the shop. Main Street only.' },
+  manager:   { id: 'manager',   name: 'Store Manager',   wage: 72, icon: '🗝️', desc: 'Runs a shop when you are not there: covers the till, restocks, tidies, and orders stock from Main Street.', chain: true },
 };
-export const STAFF_ROLE_ORDER = ['cashier', 'associate', 'stocker', 'maker'];
+export const STAFF_ROLE_ORDER = ['cashier', 'associate', 'stocker', 'maker', 'manager'];
 // Shifts: early is opening to 2 PM, late is 2 PM to close. Half shifts cost a bit over half.
 export const SHIFTS = {
   full:  { id: 'full',  name: 'All day',  from: 0, to: 1, pay: 1 },
@@ -301,4 +302,34 @@ export const STORE_REVIEW_TEXT = {
   3: ['Nice store, but they were out of what I came for.', 'Good products, a bit of a wait at the till.', 'Pretty, but a little pricey.'],
   2: ['Waited ages to pay.', 'Half the shelves were empty.', 'Too expensive for me.'],
   1: ['Gave up in the checkout line.', 'Nothing I wanted was in stock.'],
+};
+
+// ============================================================================
+// Era III: the retail chain (Milestones 5 and 6)
+// ============================================================================
+
+// Where the chain can grow. Each place has its own rent, foot traffic and shopper mix
+// (multipliers on the archetype weights), and its own look.
+export const LOCATIONS = {
+  main:     { id: 'main', name: 'Main Street', blurb: 'Where it all started.', deposit: 0, rent: 55, traffic: 1, budget: 1, mix: {}, theme: null },
+  riverside: { id: 'riverside', name: 'Riverside Market Hall', blurb: 'A busy covered market. Lots of passing trade, mostly bargain hunters and trend-chasers.', deposit: 3200, rent: 78, traffic: 1.25, budget: 0.9,
+    mix: { value: 1.8, trend: 1.5, regular: 1, natural: 0.7, skincare: 0.5, gift: 0.7, haircare: 1.1 }, theme: { wall: '#eef0ea', panel: '#bcd3e3', awning: '#6fa7c9', accent: '#3f7fa6', floor: '#d9b48a' } },
+  oldtown:  { id: 'oldtown', name: 'Old Town Lane', blurb: 'A cobbled lane of boutiques. Fewer shoppers, bigger baskets: gifts and skincare.', deposit: 4000, rent: 64, traffic: 0.85, budget: 1.3,
+    mix: { gift: 2.2, skincare: 1.7, natural: 1.3, value: 0.45, trend: 0.7, regular: 1 }, theme: { wall: '#f4e6dc', panel: '#d9c2e6', awning: '#9b7cc4', accent: '#6f55a3', floor: '#c99866' } },
+  campus:   { id: 'campus', name: 'University Quarter', blurb: 'Students and young professionals. Cheap rent, trend-driven, watching every dollar.', deposit: 2400, rent: 42, traffic: 1.1, budget: 0.8,
+    mix: { trend: 2.3, value: 1.6, haircare: 1.6, skincare: 0.6, gift: 0.45, natural: 1 }, theme: { wall: '#f2efe2', panel: '#c9e4a8', awning: '#e2a93b', accent: '#b07d24', floor: '#e3bf92' } },
+  harbour:  { id: 'harbour', name: 'Harbour Promenade', blurb: 'Seafront tourists looking for gifts and treats. Pricey, busy, and rewarding.', deposit: 5200, rent: 88, traffic: 1.2, budget: 1.2,
+    mix: { gift: 2.3, trend: 1.3, natural: 1.1, skincare: 1.1, regular: 0.5, value: 0.7 }, theme: { wall: '#edf3f3', panel: '#a9d6d3', awning: '#4fa9a4', accent: '#2f7c78', floor: '#d6c2a4' } },
+};
+export const LOCATION_ORDER = ['riverside', 'oldtown', 'campus', 'harbour'];
+
+// Chapter Three opens when the first store is properly established.
+export const EXPANSION_GOALS = { revenue: 15000, rating: 3.9, staff: 3, days: 5 };
+
+export const CHAIN = {
+  maxBranches: 3,       // stores besides Main Street
+  transferFee: 8,       // per courier run between stores
+  transferTime: 30,     // sim-seconds in transit
+  par: 8,               // a manager keeps at least this much of each displayed product in back stock
+  managerEvery: 20,     // sim-seconds between a manager's stock checks
 };

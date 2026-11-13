@@ -39,7 +39,8 @@ export function hireStaff(game, candId, role) {
   const cand = st.candidates.find((c) => c.id === candId);
   if (!cand) return { ok: false, reason: 'That candidate has taken another job.' };
   if (st.staff.length >= STORE.maxStaff) return { ok: false, reason: `The shop has room for ${STORE.maxStaff} staff for now.` };
-  if (!STAFF_ROLES[role || cand.role]) return { ok: false, reason: 'Unknown role.' };
+  const chk = roleAllowed(s, role || cand.role);
+  if (!chk.ok) return chk;
   if (!transact(game, -STORE.hireFee, 'Staff wages', `Hiring ${cand.name}`)) return { ok: false, reason: 'Not enough cash for the hiring costs.' };
   st.candidates.splice(st.candidates.indexOf(cand), 1);
   const rec = { shift: 'full', xp: 0, trained: 0, ...cand, role: role || cand.role, hiredDay: s.time.day };
@@ -63,9 +64,21 @@ export function fireStaff(game, id) {
   return { ok: true };
 }
 
+// Production Workers need the Main Street workroom; Store Managers come with the chain.
+export function roleAllowed(state, role) {
+  const R = STAFF_ROLES[role];
+  if (!R) return { ok: false, reason: 'Unknown role.' };
+  const main = !state.current || state.current === 'main';
+  if (role === 'maker' && !main) return { ok: false, reason: 'Only Main Street has a workroom.' };
+  if (R.chain && !state.milestone.chainReady && main) return { ok: false, reason: 'Store managers come with your second shop.' };
+  return { ok: true };
+}
+
 export function setStaffRole(game, id, role) {
   const s = game.state, rec = staffRecord(s, id);
   if (!rec || !STAFF_ROLES[role]) return { ok: false, reason: 'Unknown role.' };
+  const chk = roleAllowed(s, role);
+  if (!chk.ok) return chk;
   if (rec.role === role) return { ok: true };
   const actor = s.actors.find((a) => a.id === id);
   if (actor && !rec.training) releaseStoreTask(game, actor);
@@ -211,6 +224,11 @@ function chooseStore(game, actor) {
   if (role === 'associate') return restockTask(game, actor) || (st.messes.length >= 3 && tidyTask(game, actor)) || helpTask(game, actor) || tidyTask(game, actor);
   if (role === 'stocker') return restockTask(game, actor) || tidyTask(game, actor);
   if (role === 'maker') return makerTask(game, actor);
+  if (role === 'manager') {
+    if (!covered(s, 'cashier') && st.queue.length) return taskTill();
+    const floor = covered(s, 'associate') || covered(s, 'stocker');
+    return restockTask(game, actor, true) || (!floor && restockTask(game, actor)) || (st.messes.length >= 3 && tidyTask(game, actor)) || helpTask(game, actor) || tidyTask(game, actor);
+  }
   // founder
   if (!covered(s, 'cashier') && st.queue.length) return taskTill();
   const shopCovered = covered(s, 'associate') || covered(s, 'stocker');
@@ -230,7 +248,7 @@ function validStore(state, task, actor) {
   if (task.type === 'till') {
     const role = roleOf(state, actor);
     if (role === 'cashier') return true;
-    return role === 'founder' && !covered(state, 'cashier') && task.idleT < 2.5;
+    return (role === 'founder' || role === 'manager') && !covered(state, 'cashier') && task.idleT < 2.5;
   }
   if (task.type === 'restock') {
     const fu = getFurniture(state, task.fid);
@@ -325,7 +343,7 @@ const STORE_HOOKS = {
   speed: () => 1,
   onInvalid: releaseStoreTask,
 };
-const REST = { cashier: 'register', associate: 'floor', stocker: 'floor', maker: 'rest2' };
+const REST = { cashier: 'register', associate: 'floor', stocker: 'floor', maker: 'rest2', manager: 'floor' };
 
 export function tickStoreStaff(game, dt) {
   const s = game.state, st = s.store;

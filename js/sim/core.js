@@ -87,9 +87,13 @@ export function newGameState(founder = {}, seed = (Date.now() & 0x7fffffff)) {
     marketing: { active: [], cooldowns: {} },
     settings: { autoFulfill: false },
     actors: [newActor('founder', 'rest')],
-    milestone: { outgrown: false, leaseSigned: false, storeOpened: false, storeDay: 0 },
+    milestone: { outgrown: false, leaseSigned: false, storeOpened: false, storeDay: 0, chainReady: false, finale: false },
     store: null, // Era II state, created by openStore()
     lines: {},   // product lines developed in the store era (hair, bomb, gift)
+    current: 'main', // Era III: which store is in the live slots (store / goods / actors)
+    parked: {},      // every other store, by id
+    storeOrder: [],  // store ids in the order they opened
+    transfers: [],   // stock in transit between stores
     tutorial: { step: 0, done: false },
   };
   STARTER_SKUS.forEach((s, i) => {

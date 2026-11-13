@@ -28,6 +28,13 @@ const MIGRATIONS = {
     }
     return st;
   },
+  // v4 (Era III): stores get ids and locations; the live-slot / parked model; transfers.
+  3: (st) => {
+    st.current = 'main'; st.parked = st.parked || {}; st.storeOrder = st.store ? ['main'] : []; st.transfers = st.transfers || [];
+    if (st.store) Object.assign(st.store, { id: 'main', name: 'Main Street', location: 'main' });
+    st.milestone = { chainReady: false, finale: false, ...st.milestone };
+    return st;
+  },
 };
 
 // Fill in any keys a save is missing (older or partially corrupt optional data) from a fresh state.
@@ -42,7 +49,9 @@ function withDefaults(st) {
   for (const sku of st.skus) if (st.goods[sku.id] === undefined) st.goods[sku.id] = 0;
   if (st.store) {
     const fs = newStoreState();
-    for (const k of Object.keys(fs)) if (st.store[k] === undefined || st.store[k] === null) st.store[k] = fs[k];
+    const fill = (store) => { for (const k of Object.keys(fs)) if (store[k] === undefined || store[k] === null) store[k] = JSON.parse(JSON.stringify(fs[k])); };
+    fill(st.store);
+    for (const p of Object.values(st.parked || {})) if (p && p.store) fill(p.store);
     if (st.era !== 'store') st.era = 'store';
   }
   return st;

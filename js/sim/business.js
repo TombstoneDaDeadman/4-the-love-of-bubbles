@@ -1,14 +1,15 @@
 // Upgrades, marketing, progression goals, and the master simulation tick (TimeService).
 
-import { UPGRADES, CAMPAIGNS, HOME_GOALS, DAY_LENGTH, DAY_START_MIN, DAY_END_MIN, DAILY_UTILITIES, STORE } from '../data.js';
+import { UPGRADES, CAMPAIGNS, HOME_GOALS, DAY_LENGTH, DAY_START_MIN, DAY_END_MIN, DAILY_UTILITIES, STORE, CHAIN } from '../data.js';
 import { transact, forceExpense, closeDay } from './economy.js';
 import { tickDeliveries, goodsTotal, goodsCap } from './inventory.js';
 import { tickStations } from './production.js';
 import { tickOrders } from './orders.js';
 import { tickWorkers } from './workers.js';
 import { newActor } from './core.js';
-import { tickStore, closeStoreDay, refreshCandidates } from './store.js';
+import { tickStore, closeStoreDay, refreshCandidates, storeRent } from './store.js';
 import { tickStoreStaff, payWages } from './staff.js';
+import { storeIds, currentId, swapTo, tickTransfers, tickExpansion, managerReorder } from './chain.js';
 
 // ---- Upgrades -------------------------------------------------------------
 
@@ -102,11 +103,17 @@ function endDay(game) {
   const s = game.state;
   let store = null;
   if (s.era === 'store') {
-    forceExpense(game, STORE.rent, 'Rent / lease', 'Main Street storefront');
-    forceExpense(game, STORE.utilities + (s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
-    payWages(game);
-    store = closeStoreDay(s);
-    refreshCandidates(game);
+    const viewing = currentId(s);
+    for (const id of storeIds(s)) {
+      swapTo(s, id);
+      forceExpense(game, storeRent(s), 'Rent / lease', s.store.name || 'Main Street');
+      forceExpense(game, STORE.utilities + (id === 'main' && s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
+      payWages(game);
+      const sum = closeStoreDay(s);
+      if (id === 'main') store = sum;
+      refreshCandidates(game);
+    }
+    swapTo(s, viewing);
   } else {
     forceExpense(game, DAILY_UTILITIES + (s.upgrades.station2 ? 4 : 0), 'Utilities', 'Power, water, internet');
     if (s.upgrades.helper) forceExpense(game, UPGRADES.helper.wage, 'Staff wages', 'Weekend helper');
@@ -132,9 +139,28 @@ export function tick(game, dtReal) {
     tickDeliveries(game, dt);
     tickStations(game, dt);
     tickMarketing(s, dt);
-    tickOrders(game, dt);
-    if (s.era === 'store') { tickStore(game, dt); tickStoreStaff(game, dt); }
-    else tickWorkers(game, dt);
+    if (s.era === 'store') {
+      // Company systems and Main Street run with Main Street in the live slots; then every other
+      // store gets its turn, and whichever store the player is looking at goes back in.
+      const viewing = currentId(s);
+      swapTo(s, 'main');
+      tickOrders(game, dt);
+      tickTransfers(game, dt);
+      tickStore(game, dt); tickStoreStaff(game, dt);
+      for (const id of storeIds(s)) {
+        if (id === 'main') continue;
+        swapTo(s, id);
+        tickStore(game, dt); tickStoreStaff(game, dt);
+        const st = s.store;
+        st.mgrT = (st.mgrT || 0) - dt;
+        if (st.mgrT <= 0) { st.mgrT = CHAIN.managerEvery; if (st.staff.some((x) => x.role === 'manager')) managerReorder(game); }
+      }
+      swapTo(s, viewing);
+      tickExpansion(game);
+    } else {
+      tickOrders(game, dt);
+      tickWorkers(game, dt);
+    }
     tickProgression(game);
     if (s.time.t >= DAY_LENGTH) endDay(game);
   }

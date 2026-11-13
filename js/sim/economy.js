@@ -1,7 +1,10 @@
 // EconomyService: the ONLY place cash changes. Every movement is recorded in the ledger,
 // so cash can always be audited against ledger.sum.
 
-const REVENUE_CATS = new Set(['Online orders', 'Local orders', 'Big orders', 'Store sales']);
+const REVENUE_CATS = new Set(['Online orders', 'Local orders', 'Big orders', 'Store sales', 'Wholesale']);
+// Company-wide spending and income that does not belong to one shop in the per-store P&L.
+const COMPANY_CATS = new Set(['Ingredients', 'Packaging', 'Research & development', 'Online orders', 'Local orders', 'Big orders', 'Equipment', 'Distribution', 'Wholesale', 'Central kitchen', 'Regional management', 'Opening balance', 'Developer']);
+export const ledgerStore = (state, cat) => (COMPANY_CATS.has(cat) || !state.store ? 'company' : state.current || 'main');
 const MAX_ENTRIES = 400;
 
 export function canAfford(game, amount) {
@@ -21,6 +24,11 @@ export function transact(game, amount, cat, note = '') {
   if (L.entries.length > MAX_ENTRIES) L.entries.splice(0, L.entries.length - MAX_ENTRIES);
   L.lifetime[cat] = Math.round(((L.lifetime[cat] || 0) + amount) * 100) / 100;
   L.today.cats[cat] = Math.round(((L.today.cats[cat] || 0) + amount) * 100) / 100;
+  // per-store attribution (Era III): every transaction belongs to one store or to the company
+  const sid = ledgerStore(s, cat);
+  const bs = (L.today.byStore = L.today.byStore || {});
+  const b = (bs[sid] = bs[sid] || { revenue: 0, expenses: 0 });
+  if (amount > 0) b.revenue = Math.round((b.revenue + amount) * 100) / 100; else b.expenses = Math.round((b.expenses - amount) * 100) / 100;
   if (amount > 0) {
     L.today.revenue = Math.round((L.today.revenue + amount) * 100) / 100;
     if (REVENUE_CATS.has(cat)) s.stats.revenue = Math.round((s.stats.revenue + amount) * 100) / 100;
@@ -50,11 +58,12 @@ export function closeDay(game) {
     expenses: L.today.expenses,
     profit: Math.round((L.today.revenue - L.today.expenses) * 100) / 100,
     cats: { ...L.today.cats },
+    byStore: JSON.parse(JSON.stringify(L.today.byStore || {})),
     cash: s.cash,
   };
   L.days.push(summary);
   if (L.days.length > 60) L.days.shift();
-  L.today = { revenue: 0, expenses: 0, cats: {} };
+  L.today = { revenue: 0, expenses: 0, cats: {}, byStore: {} };
   return summary;
 }
 

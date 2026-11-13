@@ -12,7 +12,7 @@
 // Shoppers can never get stuck: every state has a time limit, unreachable targets are skipped,
 // and a shopper who cannot find a way out is walked to the door.
 
-import { STORE, STORE_POINTS, STARTER_LAYOUT, FURNITURE, ARCHETYPES, ARCHETYPE_ORDER, QUEUE_CELLS, CUSTOMER_NAMES, STORE_REVIEW_TEXT, PRODUCT_ORDER, DAY_LENGTH, SELL_BACK, STORE_GRID, STORE_ROWS, LOYALTY } from '../data.js';
+import { STORE, STORE_POINTS, STARTER_LAYOUT, FURNITURE, ARCHETYPES, ARCHETYPE_ORDER, QUEUE_CELLS, CUSTOMER_NAMES, STORE_REVIEW_TEXT, PRODUCT_ORDER, DAY_LENGTH, SELL_BACK, STORE_GRID, STORE_ROWS, LOYALTY, LOCATIONS } from '../data.js';
 import { transact } from './economy.js';
 import { getSku, refPrice, skuQuality, skuRating, addGoods, productUnlocked } from './inventory.js';
 import { addReview, marketingBoost } from './orders.js';
@@ -25,6 +25,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 export function newStoreState() {
   return {
+    id: 'main', name: 'Main Street', location: 'main',
     layoutVer: 0,
     furniture: [],
     customers: [],
@@ -100,7 +101,11 @@ function newFurniture(game, type, i, j, rot) {
 export const isDisplay = (fu) => FURNITURE[fu.type].slots > 0;
 export function getFurniture(state, id) { return state.store ? state.store.furniture.find((f) => f.id === id) : null; }
 
+const locOf = (state) => LOCATIONS[(state.store && state.store.location) || 'main'] || LOCATIONS.main;
+export const storeRent = (state) => locOf(state).rent;
+
 // Give an empty slot the listed recipe that is on the fewest displays.
+export function autoAssignSlot(state, fu, k) { return autoAssign(state, fu, k); }
 function autoAssign(state, fu, k) {
   const count = {};
   for (const f of state.store.furniture) for (const sl of f.slots) if (sl.skuId) count[sl.skuId] = (count[sl.skuId] || 0) + 1;
@@ -254,11 +259,12 @@ export function trafficBreakdown(state) {
   const rep = 0.55 + ((st.reputation * 0.6 + state.reputation * 0.4) / 5) * 0.75;
   const soul = 0.85 + (state.soul / 100) * 0.3;
   const appeal = 0.8 + (designScore(state).total / 100) * 0.55;
-  const daysOpen = state.time.day - (state.milestone.storeDay || state.time.day);
+  const daysOpen = state.time.day - (st.openedDay || state.milestone.storeDay || state.time.day);
   const growth = 1 + Math.min(0.5, daysOpen * 0.05);
   const marketing = 1 + marketingBoost(state, 'store') + marketingBoost(state, 'online') * 0.25;
   const hour = hourCurve(state.time.t);
-  return { rep, soul, appeal, growth, marketing, hour, total: rep * soul * appeal * growth * marketing * hour };
+  const place = locOf(state).traffic;
+  return { rep, soul, appeal, growth, marketing, hour, place, total: rep * soul * appeal * growth * marketing * hour * place };
 }
 
 export function spawnCustomer(game) {
@@ -284,7 +290,7 @@ export function spawnCustomer(game) {
     id: game.nextId('c'), name: game.pick(CUSTOMER_NAMES), arch, look: randomLook(game),
     x: p.x, z: r2(p.z + (game.rand() - 0.5) * 0.8), face: p.face, path: null, pathKey: null, pathVer: -1,
     state: 'arrive', stateT: 0, life: 0, anim: 'walk',
-    wants, wantsN: wants.length, budget: game.randInt(A.budget[0], A.budget[1]), patience: Math.round(patience),
+    wants, wantsN: wants.length, budget: Math.round(game.randInt(A.budget[0], A.budget[1]) * locOf(s).budget), patience: Math.round(patience),
     mood: Math.round(mood), tested: false,
     visited: [], missed: [], basket: [], helped: false, helperId: null, wait: 0, timer: 0, target: null,
     exit: game.rand() < 0.5 ? 'streetL' : 'streetR', leg: 0, paid: false, reason: null,
@@ -306,6 +312,7 @@ export function archetypeWeights(state) {
     if (A.requires && !productUnlocked(state, A.requires)) w = 0;
     if (A.trend) w *= 1 + buzz * 2;
     if (id === 'regular' && st && st.loyalty) w *= 1.6;
+    if (st) w *= locOf(state).mix[id] ?? 1;
     out[id] = w;
   }
   return out;

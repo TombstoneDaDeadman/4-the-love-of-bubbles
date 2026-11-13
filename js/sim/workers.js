@@ -50,6 +50,8 @@ export function taskPack(game, actor, order) {
 // the home era prioritises them, so the store era can slot its own work in between.
 export function productionWork(game) {
   const s = game.state;
+  // The stoves, the pantry and online packing are all in the Main Street workroom.
+  if (s.current && s.current !== 'main') return { queued: [], collectable: null, idle: null, urgent: null };
   const queued = s.orders.filter((o) => o.status === 'queued').sort((a, b) => a.deadline - b.deadline);
   const done = s.stations.filter((st) => st.unlocked && st.phase === 'done' && !st.claimedBy);
   const collectable = done.find((st) => {
