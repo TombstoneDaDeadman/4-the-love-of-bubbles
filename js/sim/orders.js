@@ -81,8 +81,17 @@ export function spawnOrder(game) {
   return order;
 }
 
+// Online orders ship from the back stock in the live slots (Main Street) and, once there is a
+// central kitchen, from its warehouse too.
+const warehouse = (state) => (state.kitchen ? state.kitchen.warehouse : null);
+export const stockFor = (state, skuId) => (state.goods[skuId] || 0) + ((warehouse(state) || {})[skuId] || 0);
 export function canFulfill(state, order) {
-  return order.status === 'open' && order.lines.every((l) => (state.goods[l.skuId] || 0) >= l.qty);
+  return order.status === 'open' && order.lines.every((l) => stockFor(state, l.skuId) >= l.qty);
+}
+function takeForOrder(state, skuId, qty) {
+  const fromShop = Math.min(qty, state.goods[skuId] || 0);
+  if (fromShop) removeGoods(state, skuId, fromShop);
+  if (qty > fromShop) warehouse(state)[skuId] -= qty - fromShop;
 }
 
 // Player (or the helper's auto-fulfill) commits stock to an order; it then waits to be packed.
@@ -91,7 +100,7 @@ export function fulfillOrder(game, orderId) {
   const order = s.orders.find((o) => o.id === orderId);
   if (!order || order.status !== 'open') return { ok: false, reason: 'Order is not open.' };
   if (!canFulfill(s, order)) return { ok: false, reason: 'Not enough finished stock for this order.' };
-  for (const l of order.lines) removeGoods(s, l.skuId, l.qty);
+  for (const l of order.lines) takeForOrder(s, l.skuId, l.qty);
   order.status = 'queued';
   game.emit('orderQueued', order);
   return { ok: true };

@@ -6,7 +6,7 @@ import { INGREDIENTS, INGREDIENT_ORDER, PRODUCTS, PRODUCT_ORDER, TIERS, SCENTS, 
 import { batchNeeds, batchUnits, batchTime, unitCost, refPrice, skuQuality, skuRating, priceAppeal, ingredientTotal, ingredientCap, incomingTotal, goodsTotal, goodsCap, supplyCost, ingredientFree, maxSkus, productUnlocked, ingredientInUse } from '../sim/inventory.js';
 import { profitReport } from '../sim/store.js';
 import { MAX_QUEUE } from '../sim/production.js';
-import { demandBreakdown, canFulfill } from '../sim/orders.js';
+import { demandBreakdown, canFulfill, stockFor } from '../sim/orders.js';
 import { todayProfit } from '../sim/economy.js';
 import { ICONS, productIcon } from './icons.js';
 
@@ -278,7 +278,7 @@ export function orderCards(s) {
     const cls = o.status !== 'open' ? 'busy' : ready ? 'ready' : '';
     const icon = o.channel === 'Big orders' ? '🏢' : o.channel === 'Local orders' ? '🧺' : '💻';
     return { id: o.id, cls, html: `<div class="row"><span title="${o.channel}">${icon}</span><span class="who">${esc(o.customer)}</span><span class="total">${money(o.total)}</span></div>
-      ${o.lines.map((l) => { const sku = s.skus.find((k) => k.id === l.skuId); const have = s.goods[l.skuId] || 0; return `<div class="line">${skuSwatch(sku, 'sm')}<span class="nm">${l.qty} × ${esc(sku.name)}</span>${o.status === 'open' ? `<span class="have ${have >= l.qty ? '' : 'no'}">${Math.min(have, l.qty)}/${l.qty}</span>` : ''}</div>`; }).join('')}
+      ${o.lines.map((l) => { const sku = s.skus.find((k) => k.id === l.skuId); const have = stockFor(s, l.skuId); return `<div class="line">${skuSwatch(sku, 'sm')}<span class="nm">${l.qty} × ${esc(sku.name)}</span>${o.status === 'open' ? `<span class="have ${have >= l.qty ? '' : 'no'}">${Math.min(have, l.qty)}/${l.qty}</span>` : ''}</div>`; }).join('')}
       ${o.status === 'open' ? `<div class="timebar"><i data-live="order:${o.id}"></i></div><div class="row"><span class="tiny grow" data-live="ordertime:${o.id}"></span><button class="btn sm ${ready ? 'teal' : ''}" data-act="fulfill" data-id="${o.id}" ${ready ? '' : 'disabled'}>${ready ? 'Fulfill' : 'Need stock'}</button></div>`
       : `<div class="row"><span class="chip teal">${o.status === 'packing' ? '📦 Being packed…' : '⏳ Waiting to be packed'}</span></div>`}` };
   });
