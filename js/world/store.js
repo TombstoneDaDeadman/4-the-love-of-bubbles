@@ -76,8 +76,9 @@ export class StoreWorld {
       petals: tex((g) => { for (let i = 0; i < 9; i++) { g.fillStyle = i % 2 ? 'rgba(240,154,176,0.95)' : 'rgba(185,162,230,0.95)'; g.beginPath(); g.ellipse(25 + ((i * 41) % 80), 25 + ((i * 29) % 80), 9, 5, i, 0, Math.PI * 2); g.fill(); } }),
     };
     this.messViews = new Map();
-    const grime = tex((g) => { g.fillStyle = 'rgba(0,0,0,0)'; g.fillRect(0, 0, 128, 128); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(110,85,60,${0.05 + (i % 5) * 0.03})`; g.beginPath(); g.arc((i * 47) % 128, (i * 89) % 128, 1 + (i % 4) * 1.6, 0, Math.PI * 2); g.fill(); } });
-    grime.wrapS = grime.wrapT = THREE.RepeatWrapping; grime.repeat.set(7, 4);
+    // scuffs and dust, scattered irregularly so the floor reads as worn rather than patterned
+    const grime = tex((g) => { let x = 11; const r = () => { x = (x * 16807) % 2147483647; return x / 2147483647; }; for (let i = 0; i < 140; i++) { g.fillStyle = `rgba(110,85,60,${0.04 + r() * 0.08})`; g.beginPath(); g.ellipse(r() * 128, r() * 128, 2 + r() * 9, 1 + r() * 4, r() * 3, 0, Math.PI * 2); g.fill(); } });
+    grime.wrapS = grime.wrapT = THREE.RepeatWrapping; grime.repeat.set(3.3, 1.9);
     this.grime = new THREE.Mesh(new THREE.PlaneGeometry(W, HZ - PZ), new THREE.MeshBasicMaterial({ map: grime, transparent: true, opacity: 0, depthWrite: false }));
     this.grime.rotation.x = -Math.PI / 2; this.grime.position.set(0, 0.006, (HZ + PZ) / 2);
     this.fx3d.add(this.grime);
@@ -93,7 +94,7 @@ export class StoreWorld {
       this.fx3d.add(d); this.messViews.set(m.id, d);
     }
     for (const [id, d] of this.messViews) if (!seen.has(id)) { this.fx3d.remove(d); d.material.dispose(); d.geometry.dispose(); this.messViews.delete(id); this.burst('bubble', new THREE.Vector3(d.position.x, 0.9, d.position.z), 5); }
-    this.grime.material.opacity = Math.max(0, (85 - st.clean) / 85) * 0.9;
+    this.grime.material.opacity = Math.max(0, (85 - st.clean) / 85) * 0.7;
   }
 
   _hit(w, h, d, x, y, z, id) {
@@ -524,7 +525,7 @@ export class StoreWorld {
         if (sv.tag) sv.tag.material = mat(sku ? SCENTS[sku.scentId].color : '#efe5d6', { roughness: 0.6 });
         if (!sku || !slot.stock) return;
         const sc = SCENTS[sku.scentId], cont = PRODUCTS[sku.productId].container;
-        for (let u = 0; u < slot.stock; u++) {
+        for (let u = 0; u < Math.min(slot.stock, FURNITURE[fu.type].slotCap); u++) {
           const p = SLOT_LAYOUT[fu.type](k, u);
           const m = productMesh(cont, sc.color, sc.accent);
           m.position.set(p.x, p.y, p.z);
